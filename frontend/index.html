@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>AI Industrial Inspection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div>
+        <h1>AI Industrial Inspection</h1>
+        <div class="subtitle">Vision-based defect detection</div>
+      </div>
+      <div class="status-pill offline" id="statusPill">
+        <span class="status-dot"></span>
+        <span id="statusText">CONNECTING</span>
+      </div>
+    </header>
+
+    <div class="station-strip">
+      <span>STATION: <strong>LINE-01 / PHONE-CAM</strong></span>
+      <span>INSPECTED: <strong id="inspectionCount">0</strong></span>
+    </div>
+
+    <div class="dashboard-nav">
+      <a href="/dashboard">Dashboard</a>
+    </div>
+
+    <section>
+      <p class="section-label">CAMERA FEED</p>
+      <div class="camera-frame" id="cameraFrame">
+        <div class="camera-placeholder" id="cameraPlaceholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M4 8a2 2 0 0 1 2-2h1.2a1 1 0 0 0 .86-.5l.9-1.5A1 1 0 0 1 9.8 3h4.4a1 1 0 0 1 .86.5l.9 1.5a1 1 0 0 0 .86.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8z"/>
+            <circle cx="12" cy="13" r="3.2"/>
+          </svg>
+          <p>Camera is off. Start the camera to begin live inspection, or upload a photo below.</p>
+        </div>
+        <video id="video" autoplay playsinline muted></video>
+        <img id="frozenFrame" class="frozen-frame" alt="Captured frame" />
+        <div class="viewfinder" id="viewfinder">
+          <div class="corner tl"></div>
+          <div class="corner tr"></div>
+          <div class="corner bl"></div>
+          <div class="corner br"></div>
+        </div>
+        <div class="rec-indicator" id="recIndicator">
+          <span class="dot"></span>
+          <span>LIVE</span>
+        </div>
+        <div class="processing-banner" id="processingBanner">
+          <span>ANALYZING FRAME&hellip;</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn" id="startBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8a2 2 0 0 1 2-2h1.2a1 1 0 0 0 .86-.5l.9-1.5A1 1 0 0 1 9.8 3h4.4a1 1 0 0 1 .86.5l.9 1.5a1 1 0 0 0 .86.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8z"/><circle cx="12" cy="13" r="3.2"/></svg>
+          Start Camera
+        </button>
+        <button class="btn danger" id="stopBtn" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+          Stop Camera
+        </button>
+        <button class="btn primary full" id="captureBtn" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3"/></svg>
+          Capture &amp; Inspect
+        </button>
+        <button class="btn full" id="liveModeBtn" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/></svg>
+          Live Mode: OFF
+        </button>
+        <label class="btn full" id="uploadLabel" for="uploadInput">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M12 4 8 8M12 4l4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          Upload Image
+        </label>
+        <input type="file" id="uploadInput" accept="image/*" />
+      </div>
+    </section>
+
+    <section>
+      <p class="section-label">INSPECTION RESULT</p>
+      <div class="result-card" id="resultCard">
+        <div class="result-empty" id="resultEmpty">No inspection run yet. Capture or upload a product image to begin.</div>
+      </div>
+    </section>
+
+    <p class="hint">Runs entirely on your local network. No image leaves this Wi-Fi connection.</p>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

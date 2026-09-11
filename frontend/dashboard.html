@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inspection Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    .app { max-width: 640px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div>
+        <h1>Inspection Dashboard</h1>
+        <div class="subtitle">History &amp; statistics</div>
+      </div>
+    </header>
+
+    <div class="dashboard-nav">
+      <a href="/">Inspect</a>
+      <a href="/monitor">Monitor</a>
+    </div>
+
+    <section>
+      <p class="section-label">SUMMARY</p>
+      <div class="stat-grid" id="statGrid">
+        <div class="stat-tile">
+          <div class="stat-label">TOTAL INSPECTED</div>
+          <div class="stat-value" id="statTotal">&mdash;</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-label">PASS</div>
+          <div class="stat-value pass" id="statPass">&mdash;</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-label">FAIL</div>
+          <div class="stat-value fail" id="statFail">&mdash;</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-label">DEFECT RATE</div>
+          <div class="stat-value" id="statRate">&mdash;</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-label">MOST COMMON DEFECT</div>
+          <div class="stat-value small" id="statCommon">&mdash;</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-label">AVG CONFIDENCE</div>
+          <div class="stat-value" id="statAvgConf">&mdash;</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <p class="section-label">INSPECTION TREND</p>
+      <div class="result-card">
+        <div class="trend-legend">
+          <span class="legend-item"><span class="legend-dot pass"></span>Pass</span>
+          <span class="legend-item"><span class="legend-dot fail"></span>Fail</span>
+        </div>
+        <div id="trendChartWrap">
+          <div class="result-empty">Not enough data yet.</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <p class="section-label">PASS VS FAIL</p>
+      <div class="result-card">
+        <div class="bar-chart" id="passFailChart"></div>
+      </div>
+    </section>
+
+    <section>
+      <p class="section-label">SEVERITY BREAKDOWN</p>
+      <div class="result-card">
+        <div class="bar-chart" id="severityChart"></div>
+      </div>
+    </section>
+
+    <section>
+      <p class="section-label">DEFECT TYPE DISTRIBUTION</p>
+      <div class="result-card">
+        <div class="bar-chart" id="defectChart">
+          <div class="result-empty">No defects logged yet.</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <p class="section-label">RECENT INSPECTIONS</p>
+      <div class="result-card">
+        <div class="history-list" id="historyList">
+          <div class="result-empty">No inspections yet.</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <p class="section-label">EXPORT REPORT</p>
+      <div class="controls">
+        <a class="btn full" href="/export/csv">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M12 4 8 8M12 4l4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          Export CSV
+        </a>
+        <a class="btn full" href="/export/pdf">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M12 4 8 8M12 4l4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          Export PDF
+        </a>
+      </div>
+    </section>
+  </div>
+
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>

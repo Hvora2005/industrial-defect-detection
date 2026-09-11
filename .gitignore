@@ -1,0 +1,31 @@
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Dataset (too large for git — document download steps instead)
+dataset/
+!dataset/.gitkeep
+
+# Trained models / weights (large binary files)
+model/*.pt
+!model/.gitkeep
+runs/
+training/runs/
+yolo11n.pt
+
+# Outputs
+outputs/*
+!outputs/.gitkeep
+
+# Env / secrets
+.env
+backend/certs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

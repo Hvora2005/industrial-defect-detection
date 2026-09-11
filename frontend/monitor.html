@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inspection Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    .app { max-width: 640px; }
+    .result-image { max-height: 60vh; object-fit: contain; background: var(--surface-2); }
+    .last-update { font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div>
+        <h1>Inspection Console</h1>
+        <div class="subtitle">Laptop monitor &middot; live feed from phone camera</div>
+      </div>
+      <div class="status-pill offline" id="statusPill">
+        <span class="status-dot"></span>
+        <span id="statusText">CONNECTING</span>
+      </div>
+    </header>
+
+    <div class="station-strip">
+      <span>STATION: <strong>LINE-01 / PHONE-CAM</strong></span>
+      <span>RECEIVED: <strong id="inspectionCount">0</strong></span>
+    </div>
+
+    <div class="dashboard-nav">
+      <a href="/dashboard">Dashboard</a>
+    </div>
+
+    <section>
+      <p class="section-label">LATEST FRAME &amp; RESULT</p>
+      <div class="result-card" id="resultCard">
+        <div class="result-empty" id="resultEmpty">Waiting for the phone to capture and send a frame&hellip;</div>
+      </div>
+      <div class="last-update" id="lastUpdate"></div>
+    </section>
+
+    <p class="hint">This page updates automatically over a local WebSocket. Leave it open on the laptop while inspecting from the phone.</p>
+  </div>
+
+  <script src="/static/monitor.js"></script>
+</body>
+</html>

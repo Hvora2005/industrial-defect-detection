@@ -1,0 +1,26 @@
+# --- Core ML / Computer Vision ---
+ultralytics>=8.3.0
+opencv-python>=4.10.0
+numpy>=1.26.0
+Pillow>=10.4.0
+
+# --- Backend (API server) ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+websockets>=13.0
+jinja2>=3.1.4
+
+# --- Dataset / training utilities ---
+pyyaml>=6.0.2
+matplotlib>=3.9.0
+pandas>=2.2.0
+
+# --- Dashboard (Phase 9+) ---
+sqlalchemy>=2.0.0
+
+# --- Local HTTPS cert for phone camera access (Phase 7) ---
+cryptography>=43.0.0
+
+# --- PDF report export (Phase 11) ---
+fpdf2>=2.7.0

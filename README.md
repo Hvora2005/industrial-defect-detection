@@ -24,6 +24,7 @@ phone doing any AI processing and without any cloud service or internet dependen
 - [Limitations](#limitations)
 - [Future Scope](#future-scope)
 - [Author](#author)
+- [License](#license)
 
 ---
 
@@ -246,4 +247,8 @@ phone for a fixed industrial camera, and adding:
 
 ## Author
 
-*(Add your name here)*
+**Hemin Vora**
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

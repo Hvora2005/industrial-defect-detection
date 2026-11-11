@@ -153,6 +153,10 @@ async function runInspection(imageBlob, endpoint) {
       method: "POST",
       body: formData,
     });
+    if (response.status === 503) {
+      showError("Defect model missing. Place existing trained weights in model/best.pt and restart the server. Use the OpenCV preview mode to test capture without a model.");
+      return;
+    }
     if (!response.ok) {
       throw new Error(`Server returned ${response.status}`);
     }
@@ -206,7 +210,7 @@ async function checkHealth() {
     const data = await response.json();
     statusPill.classList.remove("offline");
     statusPill.classList.add("online");
-    statusText.textContent = data.model_loaded ? "MODEL READY" : "MODEL LOADING";
+    statusText.textContent = data.model_loaded ? "MODEL READY" : "MODEL MISSING";
   } catch (err) {
     statusPill.classList.remove("online");
     statusPill.classList.add("offline");

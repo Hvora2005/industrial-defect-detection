@@ -1,254 +1,303 @@
-# AI-Based Industrial Defect Detection Using Phone Camera
+# Acero Cifrado — inspección visual de piezas metálicas
 
-A real-time industrial quality-control system that uses a smartphone as a wireless inspection
-camera. The phone captures product images over the local Wi-Fi network and sends them to a
-laptop, which runs a YOLO object-detection model to classify the product as **PASS** or **FAIL**,
-identify the defect type, draw a bounding box, and report a confidence score — all without the
-phone doing any AI processing and without any cloud service or internet dependency.
+Adaptación universitaria de [Hvora2005/industrial-defect-detection](https://github.com/Hvora2005/industrial-defect-detection).
+Esta fase prepara la captura con webcam USB y archivos locales en Windows, conservando
+la captura desde el teléfono, FastAPI, YOLO11, el monitor y el historial originales.
+No incluye entrenamiento nuevo, ESP32 ni controles de motores.
 
-## Table of Contents
-- [Project Overview](#project-overview)
-- [Problem Statement](#problem-statement)
-- [Proposed Solution](#proposed-solution)
-- [Features](#features)
-- [System Architecture](#system-architecture)
-- [Technology Stack](#technology-stack)
-- [Dataset](#dataset)
-- [Model & Training](#model--training)
-- [Results](#results)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Phone Connection Setup](#phone-connection-setup)
-- [API Documentation](#api-documentation)
-- [Applications](#applications)
-- [Limitations](#limitations)
-- [Future Scope](#future-scope)
-- [Author](#author)
-- [License](#license)
+**El clon no incluye pesos entrenados ni dataset.** Es posible probar la captura sin ellos;
+la inspección de defectos requiere un archivo `model/best.pt` previamente entrenado.
+Una vista previa nunca devuelve PASS/FAIL ni registra inspecciones.
 
----
+## Repositorio del equipo y origen
 
-## Project Overview
+El repositorio de trabajo de **Acero Cifrado** es
+[Ghost3119/industrial-defect-detection](https://github.com/Ghost3119/industrial-defect-detection),
+un fork oficial de
+[Hvora2005/industrial-defect-detection](https://github.com/Hvora2005/industrial-defect-detection).
+La rama principal conserva el nombre original: `master`. Se mantiene el historial del
+proyecto y la relación de fork en GitHub.
 
-Manual visual inspection on production lines is slow, inconsistent, and expensive to scale.
-This project builds an end-to-end computer-vision inspection pipeline that runs entirely on
-commodity hardware a student already owns — a phone and a laptop — proving the same
-architecture (camera → CV/YOLO → PASS/FAIL decision) that industrial vision-inspection stations
-use in production, without requiring an industrial camera, PLC, or conveyor hardware for the MVP.
+| Remoto | Destino | Uso |
+|---|---|---|
+| `origin` | [Ghost3119/industrial-defect-detection](https://github.com/Ghost3119/industrial-defect-detection) | Publicar el trabajo del equipo |
+| `upstream` | [Hvora2005/industrial-defect-detection](https://github.com/Hvora2005/industrial-defect-detection) | Consultar las actualizaciones del proyecto original |
 
-## Problem Statement
+La adaptación añade captura USB por OpenCV con selección y diagnóstico de cámaras,
+pruebas con imágenes/videos locales, vista previa sin pesos y manejo explícito de la
+ausencia del modelo en la API y la interfaz. Incluye pruebas automatizadas y esta guía de
+Windows; conserva las fuentes originales, las reglas de detección, la licencia MIT y los
+créditos de Hemin Vora.
 
-Small manufacturers and student/hobbyist production setups often cannot justify the cost of a
-dedicated machine-vision camera and industrial PC for quality control. A system that reuses a
-standard smartphone as the camera and a normal laptop as the inference engine removes that
-capital barrier while still demonstrating a real, working automated-inspection pipeline.
-
-## Proposed Solution
-
-- The phone opens a web page (no app install) and streams/captures product images.
-- Images are sent over the local Wi-Fi network (HTTPS) to a FastAPI server on the laptop.
-- The laptop runs a YOLO11 object-detection model trained on real industrial defect imagery.
-- The result (PASS/FAIL, defect type, confidence, bounding box) is sent back and displayed on
-  the phone, on a separate laptop "monitor" console in real time, and logged to a local database
-  for history and statistics.
-
-## Features
-
-- Live phone-camera capture, single-shot "Capture & Inspect", and gallery image upload
-- Real YOLO object detection (not just classification) — bounding box + class + confidence
-- PASS/FAIL decision logic
-- Laptop-side live monitor console (mirrors whatever the phone is inspecting, in real time)
-- Inspection history logged to SQLite (timestamp, result, defect type, confidence)
-- Statistics dashboard: total inspected, pass/fail counts, defect rate, most common defect,
-  defect-type distribution chart
-- CSV and PDF report export
-- Local HTTPS (self-signed certificate) so phone camera permission works over Wi-Fi
-- 100% local network — no cloud service, no internet dependency for inference
-
-## System Architecture
-
-```
-Phone Camera
-     |
-Mobile Web Interface (HTML/CSS/JS, served by the laptop)
-     |
-Wi-Fi / Local Network (HTTPS)
-     |
-FastAPI Server (laptop)
-     |
-Image Decode (OpenCV)
-     |
-YOLO11 Inference (Ultralytics)
-     |
-PASS / FAIL Decision + Bounding Boxes
-     |
-      +------------------------+------------------------+
-      |                        |                         |
-Annotated JSON result   WebSocket broadcast        SQLite (history)
-back to phone            to laptop Monitor page     for /stats, /history
-```
-
-**Component roles**
-| Component | Responsibility |
-|---|---|
-| Phone browser | Camera capture only — zero AI processing on-device |
-| FastAPI backend (`backend/main.py`) | Receives images, orchestrates detection, serves all pages |
-| `backend/detector.py` | Loads the trained YOLO model once, runs inference, draws boxes |
-| `backend/database.py` | Persists every inspection to SQLite |
-| `backend/reports.py` | Builds CSV/PDF exports from the stored history |
-| Laptop Monitor page (`/monitor`) | Live read-only view of whatever the phone just inspected, via WebSocket |
-| Dashboard page (`/dashboard`) | Aggregate statistics and history, auto-refreshing |
-
-## Technology Stack
-
-| Layer | Technology |
-|---|---|
-| Object detection | Ultralytics YOLO11 (nano) |
-| Computer vision / image I/O | OpenCV |
-| Backend API | FastAPI + Uvicorn |
-| Realtime updates | WebSockets |
-| Database | SQLite via SQLAlchemy |
-| PDF generation | fpdf2 |
-| Frontend | Plain HTML / CSS / JavaScript (no build step, no framework) |
-| Local HTTPS | Self-signed certificate via `cryptography` |
-| Training | PyTorch (CPU), Ultralytics training pipeline |
-
-## Dataset
-
-**NEU-DET Steel Surface Defect Database** — hot-rolled steel strip surface defects.
-
-| | |
-|---|---|
-| Classes (6) | `crazing`, `inclusion`, `patches`, `pitted_surface`, `rolled-in_scale`, `scratches` |
-| Images | 1,800 total (300/class), 200×200 grayscale, plus a 30-image held-out test set |
-| Original annotation format | PASCAL VOC (XML bounding boxes) |
-| Converted to | YOLO format via `training/convert_voc_to_yolo.py` |
-| Split | 1,416 train / 354 val / 30 test |
-
-## Model & Training
-
-- Base model: `yolo11n.pt` (nano — fastest CPU inference, appropriate given no GPU was available)
-- Image size: 256px, batch size 16, 60 epochs, CPU-only training
-- Training script: `training/train.py` (epochs/imgsz/batch/confidence/device all CLI-configurable)
-- Total training time: ~1 hour on an AMD Ryzen 3 7320U (no dedicated GPU)
-
-## Results
-
-All numbers below come directly from `model.val()` on the held-out validation split after
-training — see `training/runs/neu_det_run/` for the full training curves and confusion matrix.
-
-| Metric | Value |
-|---|---|
-| Precision | 0.701 |
-| Recall | 0.710 |
-| mAP@50 | 0.749 |
-| mAP@50-95 | 0.418 |
-
-**Per-class mAP@50**
-| Class | mAP@50 |
-|---|---|
-| patches | 0.937 |
-| scratches | 0.883 |
-| pitted_surface | 0.859 |
-| inclusion | 0.781 |
-| rolled-in_scale | 0.625 |
-| crazing | 0.408 |
-
-**Inference speed** (measured on the test set, CPU only): ~1.2ms preprocess, ~30ms inference,
-~1.5ms postprocess per image (256×256) — roughly 30 FPS of raw model throughput, well within
-what's needed for the phone's periodic-capture workflow.
-
-`crazing` is the weakest class — it's a low-contrast, subtle defect type, which is a known
-difficulty for this dataset and worth noting explicitly rather than hiding.
-
-## Installation
+Para verificar los remotos y consultar actualizaciones sin cambiar archivos locales:
 
 ```powershell
-# 1. Clone/open the project, then create a virtual environment
-python -m venv venv
-venv\Scripts\activate
-
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. (First time only) Train the model, or place a trained model/best.pt
-python training/convert_voc_to_yolo.py
-python training/train.py --epochs 60 --imgsz 256 --batch 16 --device cpu
+git remote -v
+git fetch upstream
+git log --oneline master..upstream/master
 ```
 
-## Usage
+Publica los cambios del equipo en `origin`. El entorno virtual, los archivos `.env` y sus
+variantes, certificados locales, dataset, pesos, cachés y resultados generados se excluyen
+de Git; las imágenes de prueba se generan con el comando documentado más abajo.
+
+## Arquitectura y revisión del repositorio
+
+```text
+Teléfono: getUserMedia → canvas → JPEG ──────────────┐
+Galería del navegador: archivo → /upload ────────────┤
+                                                   ▼
+Webcam USB / imagen / video → backend/capture.py → POST /detect
+                                                   │
+                                  FastAPI → OpenCV (decodificación)
+                                                   │
+                                  detector.py → YOLO11 → PASS/FAIL
+                                                   │
+                      JSON + JPEG anotado + WebSocket /ws/monitor
+                                                   │
+                                 SQLite → historial, estadísticas, reportes
+```
+
+| Componente | Responsabilidad |
+|---|---|
+| `frontend/` | HTML, CSS y JavaScript sin compilación: captura, monitor y dashboard |
+| `frontend/app.js` | `getUserMedia` con cámara trasera preferida; canvas a JPEG, máximo 640 px; captura manual, envío periódico cada 2 s y carga de imágenes |
+| `backend/main.py` | FastAPI, rutas de inspección y páginas; difunde los resultados al monitor |
+| `backend/capture.py` | Cliente OpenCV añadido: selección por índice, búsqueda de cámaras, imagen/video local y vista previa; reutiliza `/detect` |
+| `backend/detector.py` | Carga los pesos una vez si existen; inferencia, cajas, severidad y regla original: cualquier detección implica FAIL |
+| `backend/config.py` | Ruta absoluta de `model/best.pt`, confianza `0.4`, tamaño de inferencia `256`; `HOST`/`PORT` son referencias y el arranque se configura en Uvicorn |
+| `backend/database.py` | SQLAlchemy y SQLite en `outputs/inspections.db` |
+| `backend/reports.py` | Exportación CSV y PDF |
+| `backend/generate_cert.py` | Certificado HTTPS local para la cámara del teléfono |
+| `training/` | Conversión VOC→YOLO, entrenamiento e inferencia de muestra originales |
+| `tools/create_test_media.py` | Genera imagen y video sintéticos para comprobar captura sin hardware |
+| `tests/` | Pruebas de captura, errores, integración HTTP, historial y WebSocket sin pesos reales |
+
+Antes de esta adaptación, OpenCV solamente decodificaba las imágenes subidas: no había
+`VideoCapture` en el backend ni recepción de video continuo. El modo en vivo del teléfono
+envía fotos periódicas. Estas fuentes y sus rutas siguen disponibles.
+
+### Dependencias y YOLO11
+
+- `requirements.txt` conserva las dependencias originales con versiones mínimas:
+  Ultralytics (incluye PyTorch), OpenCV, NumPy y Pillow; FastAPI, Uvicorn, multipart,
+  WebSockets y Jinja2; SQLAlchemy, fpdf2 y cryptography; utilidades de datos y entrenamiento.
+- `requirements-dev.txt` añade pytest y HTTPX para probar la API. No se requiere Node.js.
+- La vista previa gráfica necesita `opencv-python` con ventanas. `--headless` evita
+  las ventanas; no instales simultáneamente distintas variantes de OpenCV.
+- El entrenamiento original usa `yolo11n.pt` como base. `train.py` tiene valores por defecto
+  de 80 épocas y 320 px; el README anterior describía una corrida de 60 épocas y 256 px.
+  El backend conserva 256 px. No hay pesos, corridas ni métricas verificables en este clon.
+- `model/` contiene únicamente `.gitkeep`. `dataset/data.yaml` se genera con el conversor y
+  tampoco está incluido. `.gitignore` excluye pesos, dataset y resultados.
+- Las clases originales de NEU-DET son `crazing`, `inclusion`, `patches`, `pitted_surface`,
+  `rolled-in_scale` y `scratches`. El detector usa las clases almacenadas en los pesos.
+  Un modelo genérico de COCO no sustituye un modelo de defectos. Las métricas del proyecto
+  original no validan su desempeño sobre nuestras piezas estampadas.
+
+Referencias: [Ultralytics](https://docs.ultralytics.com/quickstart/),
+[PyTorch para Windows](https://pytorch.org/get-started/locally/) y
+[OpenCV VideoCapture](https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html).
+
+## Instalación en Windows (PowerShell)
+
+Ejecuta todos los comandos desde la raíz del repositorio. Usa Python de 64 bits.
+El intérprete del entorno virtual se invoca directamente para evitar depender de la
+política de ejecución de scripts de PowerShell.
 
 ```powershell
-cd backend
-python -m uvicorn main:app --host 0.0.0.0 --port 8000 --ssl-keyfile certs\key.pem --ssl-certfile certs\cert.pem
+python --version
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pip check
 ```
 
-Then open:
-- `https://<laptop-ip>:8000/` — phone inspection page
-- `https://<laptop-ip>:8000/monitor` — laptop live console
-- `https://<laptop-ip>:8000/dashboard` — statistics dashboard, CSV/PDF export
+Para usar únicamente el sistema, instala `requirements.txt` en lugar del archivo de
+desarrollo. La instalación inicial necesita internet; las capturas e inferencias con pesos
+existentes son locales. Las versiones mínimas permiten que pip seleccione versiones nuevas,
+por lo que la compatibilidad se debe comprobar en cada entorno.
 
-## Phone Connection Setup
+Para usar solamente `capture.py --preview-only` y el generador de medios, basta instalar
+OpenCV y NumPy en el entorno virtual; puedes posponer la descarga de PyTorch y del resto
+del sistema hasta que necesites la API o la suite completa:
 
-1. Connect the phone and laptop to the **same Wi-Fi network** (or use the phone's hotspot).
-2. Find the laptop's IPv4 address: `ipconfig` (look under the Wi-Fi adapter).
-3. Generate a local HTTPS certificate (once, or whenever the IP changes):
-   `python backend/generate_cert.py`
-4. Start the server (see Usage above).
-5. Allow the app through Windows Firewall if prompted (or add a rule manually — see
-   `backend/generate_cert.py` docstring / project notes).
-6. On the phone, open `https://<laptop-ip>:8000`, accept the self-signed certificate warning,
-   grant camera permission, and start inspecting.
+```powershell
+.\.venv\Scripts\python.exe -m pip install "opencv-python>=4.10.0" "numpy>=1.26.0"
+```
 
-**Troubleshooting**
-| Symptom | Likely cause | Fix |
+## Prueba inmediata sin hardware ni modelo
+
+Genera un PNG y un video AVI/MJPG de 30 fotogramas. Son medios artificiales para verificar
+lectura y transporte de imágenes, sin representar defectos reales ni medir precisión.
+
+```powershell
+.\.venv\Scripts\python.exe tools/create_test_media.py
+.\.venv\Scripts\python.exe backend/capture.py --source outputs/demo/sample.png --preview-only
+.\.venv\Scripts\python.exe backend/capture.py --source outputs/demo/sample.avi --preview-only
+```
+
+La imagen espera una tecla. En video o webcam, pulsa `q` o Escape, cierra la ventana o usa
+Ctrl+C para terminar y liberar la captura. Los videos se leen secuencialmente hasta el final,
+sin repetición automática ni sincronización con su FPS original. Cada imagen leída cuenta
+como un fotograma, no como una pieza física.
+
+Para una comprobación automática sin ventanas:
+
+```powershell
+.\.venv\Scripts\python.exe backend/capture.py --source outputs/demo/sample.png --preview-only --headless
+.\.venv\Scripts\python.exe backend/capture.py --source outputs/demo/sample.avi --preview-only --headless --max-frames 10 --interval 0
+```
+
+La vista previa no requiere FastAPI. El código de salida es `0` al finalizar correctamente,
+`1` ante errores, `2` con argumentos inválidos y `130` con Ctrl+C. La búsqueda devuelve `1`
+si no encuentra ninguna cámara.
+
+## Webcam USB y selección de cámara
+
+Conecta la webcam y busca índices que entreguen una imagen:
+
+```powershell
+.\.venv\Scripts\python.exe backend/capture.py --list-cameras --max-index 5
+.\.venv\Scripts\python.exe backend/capture.py --camera 0 --preview-only
+```
+
+Elige el índice devuelto por la búsqueda (`--camera 1`, por ejemplo). Se exploran los índices
+cero a `--max-index`, inclusive, y la búsqueda puede tardar por los controladores. OpenCV
+puede incluir la cámara integrada: el índice no identifica el tipo USB ni un nombre estable
+y puede cambiar al reconectar. Esta fase usa una cámara a la vez, sin reconexión automática.
+
+Si el controlador automático falla, repite búsqueda y captura con el mismo backend de Windows:
+
+```powershell
+.\.venv\Scripts\python.exe backend/capture.py --list-cameras --backend dshow
+.\.venv\Scripts\python.exe backend/capture.py --camera 0 --backend dshow --preview-only
+# Alternativa: sustituir dshow por msmf
+```
+
+## Arrancar la API e inspeccionar
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn main:app --app-dir backend --host 127.0.0.1 --port 8000
+```
+
+Abre [la interfaz](http://127.0.0.1:8000/), [el monitor](http://127.0.0.1:8000/monitor),
+[el dashboard](http://127.0.0.1:8000/dashboard) o [la documentación API](http://127.0.0.1:8000/docs).
+En otra terminal de PowerShell:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+```
+
+Sin `model/best.pt`, las páginas abren y `/health` devuelve `model_loaded: false`;
+`/detect` y `/upload` responden **503** con instrucciones, sin inventar ni guardar resultados.
+Coloca pesos de defectos ya entrenados y de confianza en esa ruta y reinicia el servidor para
+habilitar inferencia. Pesos inválidos o incompatibles producen un error al arrancar.
+No ejecutes `training/train.py` en esta fase.
+
+Con los pesos y el servidor disponibles, usa una segunda terminal:
+
+```powershell
+.\.venv\Scripts\python.exe backend/capture.py --camera 0
+.\.venv\Scripts\python.exe backend/capture.py --source outputs/demo/sample.png
+.\.venv\Scripts\python.exe backend/capture.py --source "C:\ruta con espacios\pieza.mp4" --headless --max-frames 10 --interval 0.5
+```
+
+Sin `--preview-only`, cada fotograma se envía como JPEG a `/detect`. Los resultados se
+imprimen y la ventana muestra la imagen anotada de la API. El monitor recibe el resultado
+por WebSocket y el dashboard consulta SQLite. Las pruebas con archivos **también quedan
+en el historial**. `--interval` añade una pausa entre solicitudes (0.1 s por defecto), sin
+garantizar una frecuencia. `--api-url http://127.0.0.1:8001` cambia el servidor; las solicitudes
+esperan hasta 30 s y no se reintentan automáticamente.
+
+### Teléfono: fuente original conservada
+
+Para la cámara de un teléfono en la misma Wi-Fi necesitas HTTPS. Genera un certificado e
+inicia un servidor HTTPS, por ejemplo en 8443:
+
+```powershell
+ipconfig
+.\.venv\Scripts\python.exe backend/generate_cert.py --ip 192.168.1.14
+.\.venv\Scripts\python.exe -m uvicorn main:app --app-dir backend --host 0.0.0.0 --port 8443 --ssl-keyfile backend/certs/key.pem --ssl-certfile backend/certs/cert.pem
+```
+
+Sustituye la IP por la de tu computadora. Abre `https://<IP>:8443/` en el teléfono, acepta el
+certificado local y concede acceso a la cámara. Revisa el Firewall de Windows si no conecta.
+El cliente OpenCV usa HTTP en 8000 por defecto; si lo diriges a HTTPS, Python debe confiar
+en el certificado. No se desactiva la verificación TLS.
+
+## Pruebas
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m pytest tests/test_capture.py -q
+```
+
+Las pruebas generan y decodifican imágenes/videos reales en carpetas temporales y simulan
+cámaras ausentes, desconexiones, selección, errores HTTP y cierre de recursos. La integración
+comprueba el multipart contra FastAPI, los endpoints originales, SQLite temporal y WebSocket
+con un detector simulado. **No valida inferencia YOLO ni hardware**.
+
+El archivo original `training/test_inference.py` es un script manual, no una suite automatizada.
+Requiere pesos y muestras reales para producir resultados:
+
+```powershell
+.\.venv\Scripts\python.exe training/test_inference.py --model model/best.pt --source "C:\ruta\imagenes" --conf 0.4
+```
+
+### Validación realizada en esta fase
+
+Entorno comprobado: Windows 11 Home x64, Python 3.14.3, OpenCV 5.0.0
+(`opencv-python` 5.0.0.93), FastAPI 0.162.4, Ultralytics 8.4.210 y PyTorch 2.15.0 CPU.
+Otras combinaciones de versiones no se han verificado.
+
+| Comprobación ejecutada | Resultado |
+|---|---|
+| `python -m pytest -q` | 50 pruebas pasaron; una advertencia de Starlette sobre el futuro reemplazo de HTTPX en TestClient |
+| `python -m pip check` | Sin dependencias incompatibles declaradas |
+| Generador y cliente con PNG y AVI/MJPG | Lectura correcta de 1 imagen y 30 fotogramas; límite de 10 fotogramas comprobado |
+| Vista previa gráfica de PNG | Imagen visible en una ventana real de OpenCV; cierre con `q` comprobado |
+| Cámara inexistente, índice 99 con DirectShow | Mensaje de conexión y salida 1, sin traceback |
+| Uvicorn + petición HTTP real | Arranque correcto, `/health` sin modelo y `/detect` con 503; historial sin inspecciones |
+| Navegador local | Interfaz con `MODEL MISSING`, monitor conectado y dashboard vacío |
+| `node --check frontend/app.js` | Sintaxis válida; Node se usó para esta comprobación y no es necesario para ejecutar la aplicación |
+| `pytest training/test_inference.py -q` | No contiene pruebas recolectables |
+| Script original con `--model model/best.pt --source outputs/demo/sample.png` | Se detuvo con `FileNotFoundError`: faltan los pesos |
+
+No se entrenó ni descargó ningún modelo. La captura USB real, su desconexión física,
+la inferencia con pesos entrenados y la captura del teléfono siguen pendientes de validación.
+
+### Comprobación manual pendiente
+
+1. Sin hardware: genera los medios y abre ambas vistas previas. Inicia la API y comprueba
+   `/health` y el error 503 mientras no haya pesos.
+2. Con webcam: identifica el índice, observa la imagen, desconecta el USB durante la captura
+   y confirma el error; reconecta y ejecuta de nuevo.
+3. Con pesos existentes: inspecciona una imagen y una captura USB; verifica la imagen anotada
+   en `/monitor` y el registro en `/dashboard`. Esto comprueba el flujo, no la precisión sobre
+   piezas estampadas.
+4. Si se utilizará el teléfono, comprueba permisos y captura por HTTPS en un teléfono real.
+
+| Problema | Acción |
+|---|---|
+| No hay cámaras o no se abre un índice | Revisa USB, otro índice y `--max-index`; cierra Teams/Zoom/Cámara y permite cámara para aplicaciones de escritorio en Windows |
+| La cámara deja de entregar imágenes | Revisa el cable, reconecta y repite; prueba `dshow` o `msmf` |
+| No se abre un video | Comprueba ruta y codec; usa el AVI/MJPG generado como referencia |
+| No conecta con la API | Arranca Uvicorn y revisa `--api-url`; para captura sin modelo usa `--preview-only` |
+| HTTP 503 | Coloca pesos de defectos en `model/best.pt` y reinicia |
+| La ventana no se abre | Comprueba `opencv-python` con GUI o usa `--headless` |
+
+## API conservada
+
+| Ruta | Método | Uso |
 |---|---|---|
-| "This site can't be reached" | Firewall blocking the port, or Wi-Fi profile set to Public | Add a firewall rule for the port; check `Get-NetConnectionProfile` |
-| Camera permission denied | Page loaded over plain HTTP | Must use HTTPS (self-signed is fine) — phone browsers block camera on non-secure origins |
-| Connection refused | Wrong IP, or phone/laptop on different networks | Re-check `ipconfig`, confirm both devices show the same subnet |
-| Live feed is laggy | Phone camera capturing at full native resolution | Already mitigated: capture is capped to 640px longest side client-side |
+| `/health` | GET | Estado del servidor y presencia real del modelo |
+| `/detect`, `/upload` | POST | JPEG/PNG multipart en el campo `file` |
+| `/history`, `/stats`, `/trend` | GET | Historial, estadísticas y tendencia |
+| `/export/csv`, `/export/pdf` | GET | Reportes |
+| `/ws/monitor` | WebSocket | Difusión de cada inspección |
 
-## API Documentation
+## Créditos y licencia
 
-| Endpoint | Method | Purpose |
-|---|---|---|
-| `/health` | GET | Server + model status |
-| `/detect` | POST | Run detection on a camera frame/capture (multipart `file`) |
-| `/upload` | POST | Run detection on a gallery-uploaded image (multipart `file`) |
-| `/history` | GET | Recent inspections (`?limit=N`) |
-| `/stats` | GET | Aggregate statistics |
-| `/export/csv` | GET | Download full inspection history as CSV |
-| `/export/pdf` | GET | Download a formatted PDF report |
-| `/ws/monitor` | WebSocket | Live push of every detection result to the laptop console |
-
-## Applications
-
-The same phone-camera-as-sensor concept scales toward real production use by swapping the
-phone for a fixed industrial camera, and adding:
-- A conveyor belt with a trigger sensor for automatic capture
-- A PLC or Arduino/ESP32 interface to actuate a servo-based reject mechanism
-- Integration into an existing production-line control system
-
-## Limitations
-
-- CPU-only inference (no GPU on the development laptop) — a GPU would allow larger models and
-  higher-resolution training for better accuracy, especially on the weaker `crazing` class
-- Single-camera, single-station setup — no multi-camera or multi-line support yet
-- No authentication on the API — acceptable for a local-network student project, not production
-- Self-signed certificate requires a manual "proceed anyway" on first connection
-
-## Future Scope
-
-- Defect severity scoring, batch inspection mode, video inspection
-- Email/Telegram alerts on FAIL
-- Product/batch tracking
-- Conveyor-belt + Arduino/ESP32 reject-arm prototype
-- Edge deployment (e.g. exporting to ONNX/TensorRT for a dedicated inspection PC)
-
-## Author
-
-**Hemin Vora**
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
+Proyecto original de **Hemin Vora**. Adaptación universitaria **Acero Cifrado**.
+Se conserva la [licencia MIT](LICENSE).

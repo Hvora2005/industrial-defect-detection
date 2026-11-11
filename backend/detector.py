@@ -5,7 +5,6 @@ import base64
 
 import cv2
 import numpy as np
-from ultralytics import YOLO
 
 from config import CONF_THRESHOLD, IMG_SIZE, MODEL_PATH
 
@@ -35,8 +34,11 @@ class DefectDetector:
     def __init__(self):
         if not MODEL_PATH.exists():
             raise FileNotFoundError(
-                f"Model not found at {MODEL_PATH}. Run training/train.py first (Phase 3)."
+                f"Model not found at {MODEL_PATH}. Supply existing trained defect weights, "
+                "or use backend/capture.py --preview-only to test capture without a model."
             )
+        from ultralytics import YOLO
+
         self.model = YOLO(str(MODEL_PATH))
         self.class_names = self.model.names  # {id: name}
 
@@ -102,5 +104,6 @@ class DefectDetector:
         return base64.b64encode(buffer).decode("utf-8")
 
 
-# Loaded once at import time so every request reuses the same in-memory model
-detector = DefectDetector()
+# Reuse one model when weights exist. A fresh clone can serve the UI and
+# report its actual readiness without downloading weights or training.
+detector = DefectDetector() if MODEL_PATH.is_file() else None

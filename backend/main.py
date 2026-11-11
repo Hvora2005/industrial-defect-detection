@@ -22,6 +22,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from detector import detector
+from config import MODEL_PATH
 from database import save_inspection, get_recent_inspections, get_stats, get_trend
 from reports import build_csv, build_pdf
 
@@ -89,29 +90,34 @@ def serve_dashboard():
 def health():
     return {
         "status": "ok",
-        "model_loaded": True,
-        "classes": list(detector.class_names.values()),
+        "model_loaded": detector is not None,
+        "classes": list(detector.class_names.values()) if detector is not None else [],
     }
 
 
-@app.post("/detect")
-async def detect(file: UploadFile = File(...)):
-    """Used for live camera frames and 'Capture & Inspect'."""
-    image_bgr = await _read_image_from_upload(file)
+async def _inspect(image_bgr: np.ndarray) -> dict:
+    if detector is None:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Defect model missing: {MODEL_PATH}. Supply existing trained weights and "
+                   "restart the server. Use capture.py --preview-only for capture tests.",
+        )
     result = detector.predict(image_bgr)
     save_inspection(result)
     await broadcast_to_monitors(result)
     return result
+
+
+@app.post("/detect")
+async def detect(file: UploadFile = File(...)):
+    """Used for phone frames and the OpenCV capture client."""
+    return await _inspect(await _read_image_from_upload(file))
 
 
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
     """Used for gallery image uploads. Same processing as /detect."""
-    image_bgr = await _read_image_from_upload(file)
-    result = detector.predict(image_bgr)
-    save_inspection(result)
-    await broadcast_to_monitors(result)
-    return result
+    return await _inspect(await _read_image_from_upload(file))
 
 
 @app.get("/history")

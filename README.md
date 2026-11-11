@@ -1,8 +1,8 @@
 # Acero Cifrado — inspección visual de piezas metálicas
 
 Adaptación universitaria de [Hvora2005/industrial-defect-detection](https://github.com/Hvora2005/industrial-defect-detection).
-Esta fase prepara la captura con webcam USB y archivos locales en Windows, conservando
-la captura desde el teléfono, FastAPI, YOLO11, el monitor y el historial originales.
+Incluye captura por webcam y archivos locales, inferencia CPU/CUDA y registro manual de
+inspecciones en Windows. Conserva teléfono, FastAPI, YOLO11, monitor e historial originales.
 No incluye entrenamiento nuevo, ESP32 ni controles de motores.
 
 **El clon no incluye los pesos entrenados del autor ni el dataset.** Es posible probar la
@@ -204,10 +204,11 @@ Con los pesos y el servidor disponibles, usa una segunda terminal:
 .\.venv\Scripts\python.exe backend/capture.py --source "C:\ruta con espacios\pieza.mp4" --headless --max-frames 10 --interval 0.5
 ```
 
-Sin `--preview-only`, cada fotograma se envía como JPEG a `/detect`. Los resultados se
-imprimen y la ventana muestra la imagen anotada de la API. El monitor recibe el resultado
-por WebSocket y el dashboard consulta SQLite. Las pruebas con archivos **también quedan
-en el historial**. `--interval` añade una pausa entre solicitudes (0.1 s por defecto), sin
+Sin `--preview-only`, una imagen se envía como JPEG a `/detect` y registra una inspección.
+Los videos y webcams del cliente CLI utilizan `/preview`: muestran inferencia sin registrar
+cada fotograma como una pieza. Para registrar capturas manuales utiliza el dashboard.
+Los resultados se imprimen y la ventana muestra la imagen anotada de la API. `--interval`
+añade una pausa entre solicitudes (0.1 s por defecto), sin
 garantizar una frecuencia. `--api-url http://127.0.0.1:8001` cambia el servidor; las solicitudes
 esperan hasta 30 s y no se reintentan automáticamente.
 
@@ -344,7 +345,7 @@ La webcam mantiene las mismas opciones de selección, errores y captura. Cuando 
 .\.venv\Scripts\python.exe backend/capture.py --camera 0 --model model/steel-defect-yolo11n.pt --imgsz 640 --grayscale --iou 0.6 --conf 0.4 --output outputs/inference/webcam.avi
 ```
 
-### Interpretación y validación real de esta fase
+### Interpretación y validación de la fase anterior de inferencia
 
 - `FAIL` significa que el modelo detectó al menos un defecto; no es una decisión industrial
   validada de rechazo. Se conserva ese código para las detecciones existentes.
@@ -370,9 +371,170 @@ La webcam mantiene las mismas opciones de selección, errores y captura. Cuando 
 
 El video sintético prueba el recorrido de datos y también exhibe detecciones espurias; no
 mide precisión. La muestra NEU-DET podría pertenecer al entrenamiento del modelo externo.
-No se evaluó un conjunto independiente ni piezas estampadas, iluminación real, USB físico
-o teléfono físico. No se entrenó un modelo nuevo. Los dos registros de la comprobación
-real de API permanecen en la base local como inspecciones de prueba.
+En esa fase no se evaluó un conjunto independiente, piezas estampadas ni hardware físico.
+No se entrenó un modelo nuevo. Los dos registros de aquella comprobación de API permanecen
+en la base local como inspecciones de prueba. La nueva fase añadió una captura manual del
+video sintético: el historial de desarrollo contiene tres inspecciones de prueba.
+
+## CUDA y cámara en tiempo real: fase actual
+
+### Entorno verificado e instalación opcional de GPU
+
+Se comprobó Windows 11 x64 y Python 3.14.3 con NVIDIA GeForce RTX 4050 Laptop GPU de 6 GB,
+driver 610.78 y capacidad de cómputo 8.9. La instalación anterior era PyTorch `2.15.0+cpu`,
+torchvision `0.29.2+cpu`, Ultralytics `8.4.210`; torchaudio no estaba instalado ni es necesario.
+
+Se sustituyeron únicamente torch y torchvision por el par oficial `2.14.1+cu130` y
+`0.29.1+cu130`, disponible para Python 3.14 y Windows. Ultralytics y las demás dependencias
+se conservaron. `torch.cuda.is_available()` devolvió `True`, se comprobó un tensor CUDA y
+se ejecutó el modelo real con `device=0`. **No se instaló CUDA Toolkit completo**.
+
+El `13.3` de `nvidia-smi` corresponde al soporte del driver; el runtime de esta distribución
+de PyTorch es `13.0`. No tienen que ser iguales. Referencias oficiales:
+[versiones PyTorch para Windows/CUDA](https://pytorch.org/get-started/previous-versions/) y
+[compatibilidad de drivers NVIDIA](https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html).
+
+Después de instalar las dependencias base, en PowerShell desde la raíz:
+
+```powershell
+# NVIDIA: wheels oficiales. La descarga de torch es de aproximadamente 2 GB.
+.\.venv\Scripts\python.exe -m pip install --no-deps -r requirements-cuda.txt
+.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe -c "import torch,torchvision; print(torch.__version__,torchvision.__version__); print(torch.version.cuda,torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
+```
+
+`--no-deps` evita cambiar dependencias ajenas en el entorno base ya instalado. Para un equipo
+sin NVIDIA, conserva la instalación CPU o instala el mismo par desde el índice CPU:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --no-deps torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cpu
+.\.venv\Scripts\python.exe -m pip check
+```
+
+La aplicación acepta `auto`, `cpu` y `cuda`. `auto` selecciona CUDA si está disponible; si
+no, avisa y usa CPU. Una solicitud explícita `cuda` genera error cuando no está disponible,
+sin cambiar silenciosamente a CPU. Un error de ejecución GPU tampoco se oculta con un cambio
+de dispositivo. Se puede detener la captura y seleccionar CPU desde la web.
+
+### Ejecutar backend y controles del dashboard
+
+Se utilizan exactamente los mismos pesos ya validados, con el mismo hash y preprocesamiento:
+
+```powershell
+$env:ACERO_MODEL_PATH = 'model/steel-defect-yolo11n.pt'
+$env:ACERO_IMG_SIZE = '640'
+$env:ACERO_GRAYSCALE = '1'
+$env:ACERO_IOU = '0.6'
+$env:ACERO_DEVICE = 'auto'
+.\.venv\Scripts\python.exe -m uvicorn main:app --app-dir backend --host 127.0.0.1 --port 8000
+```
+
+Abre [Dashboard](http://127.0.0.1:8000/dashboard). El equipo sin GPU puede usar los mismos
+comandos con `ACERO_DEVICE='cpu'`. El frontend usa fuentes del sistema, sin peticiones a
+Google Fonts ni dependencias CDN. Una vez instalados paquetes y pesos, la captura e
+inferencia funcionan localmente. Las descargas y enlaces de documentación sí necesitan red.
+
+1. Pulsa **Buscar cámaras** con la captura detenida. El índice puede corresponder a una
+   cámara integrada o USB; OpenCV no proporciona aquí un nombre estable del hardware.
+   Si `Auto` falla, selecciona `DirectShow` o `Media Foundation` y vuelve a buscar.
+2. Elige la fuente, ancho, alto, FPS solicitados, confianza y `Auto`, `GPU CUDA` o `CPU`.
+   La web muestra resolución real de los fotogramas y FPS informados por el controlador;
+   la cámara puede ignorar los valores solicitados. Los ajustes de cámara no redimensionan
+   archivos de video: estos mantienen sus dimensiones/FPS originales.
+3. Pulsa **Iniciar inspección**. La vista previa dibuja cajas, clases y confianza, muestra
+   CPU/GPU, latencia YOLO y FPS de procesamiento. **No guarda inspecciones por fotograma**.
+4. Coloca una pieza y pulsa **Capturar e inspeccionar una pieza** una sola vez. Ese evento
+   guarda un registro en SQLite y dos JPEG, original y anotado, en `outputs/captures/`.
+   Los enlaces permiten descargarlos; el monitor existente recibe la inspección por WebSocket.
+5. Para ajustar el umbral durante la captura, cambia **Confianza** y pulsa **Aplicar confianza**.
+   La web confirma el valor recibido por el backend.
+6. Pulsa **Detener** para liberar la fuente. Puedes cambiar cámara, resolución o dispositivo
+   y volver a iniciar sin reiniciar FastAPI. Recargar la página recupera la sesión activa.
+
+Los contadores representan **eventos de inspección controlados por el operador**, no objetos
+físicos únicos reconocidos automáticamente. Pulsar otra vez para la misma pieza representa
+otra inspección. Reintentos de red con el mismo UUID reutilizan el resultado (últimos 64
+eventos en memoria); los archivos existentes tampoco se sobrescriben tras reiniciar. No hay
+sensor, seguimiento de identidad de piezas, banda, ESP32 ni mecanismo de rechazo.
+
+Si la cámara se desconecta, está ocupada o deja de leer, se muestra el error y se libera
+la captura. Reconecta y vuelve a iniciar; no hay reconexión automática. Un controlador que
+quede bloqueado en una lectura puede impedir una parada inmediata: el servidor informa
+la situación en lugar de afirmar que ya se detuvo. No se verificó desconexión física.
+
+### Prueba con video sin cámara y uso por consola
+
+La fuente **Demo: sample.avi** repite el video sintético para probar controles, capturas y
+registro manual sin hardware. Se puede cambiar el archivo de demostración al arrancar
+mediante `ACERO_DEMO_VIDEO`, ruta local relativa a la raíz o absoluta.
+
+```powershell
+.\.venv\Scripts\python.exe tools/create_test_media.py
+# Inferencia real CUDA de la imagen NEU-DET:
+.\.venv\Scripts\python.exe backend/capture.py --model model/steel-defect-yolo11n.pt --source outputs/validation/patches_1.jpg --imgsz 640 --grayscale --iou 0.6 --device cuda --conf 0.4 --headless --output outputs/inference/patches_gpu.png --overwrite
+# Webcam local; q/Escape detiene y libera. No registra piezas por fotograma.
+.\.venv\Scripts\python.exe backend/capture.py --camera 0 --backend dshow --width 640 --height 480 --fps 30 --model model/steel-defect-yolo11n.pt --imgsz 640 --grayscale --iou 0.6 --device auto --conf 0.4
+```
+
+La consola informa configuración solicitada/efectiva, dispositivo y rendimiento. El argumento
+`--device` también se admite en `training/test_inference.py`. En la API, `/detect`, `/upload`
+y `/preview` aceptan `?device=auto|cpu|cuda`; la selección explícita prevalece sobre el valor
+predeterminado `ACERO_DEVICE`. El modo periódico del teléfono ahora utiliza `/preview` sin
+incrementar contadores; su botón manual sigue registrando una inspección.
+
+### Rendimiento medido, no estimado a partir de especificaciones
+
+```powershell
+.\.venv\Scripts\python.exe tools/benchmark_inference.py --model model/steel-defect-yolo11n.pt --image outputs/validation/patches_1.jpg --imgsz 640 --conf 0.4 --iou 0.6 --warmup 5 --runs 30
+```
+
+Medición sin pruebas automatizadas simultáneas: mismos pesos, imagen, entrada gris de 640 px,
+confianza `0.4`, IoU `0.6` y parámetros FP32. Cinco calentamientos excluidos y 30 muestras por
+dispositivo, sincronizando CUDA antes/después de medir. Carga de pesos, captura, HTTP y
+calentamiento están fuera de las muestras. `outputs/benchmark/cpu_gpu.json` conserva muestras,
+hash, versiones, dispositivo real de parámetros y estadísticas:
+
+| Dispositivo | YOLO media / mediana | FPS aprox. YOLO | Con anotación/JPEG media / mediana | FPS aprox. con anotación/JPEG |
+|---|---|---|---|---|
+| CPU | 41.683 / 39.151 ms | 23.99 | 43.173 / 40.660 ms | 23.16 |
+| RTX 4050 (`cuda:0`) | 11.410 / 10.392 ms | 87.64 | 12.991 / 12.032 ms | 76.98 |
+
+YOLO incluye preparación de entrada, red y NMS; el segundo tiempo añade dibujo y codificación.
+Los FPS son `1000 / latencia media`, no la velocidad garantizada de una línea ni los FPS de
+la webcam. En la web, los FPS de procesamiento incluyen lectura, inferencia y codificación,
+excluyen la espera deliberada entre fotogramas y se suavizan con hasta 30 muestras. El inicio
+incluye calentamiento y puede mostrar valores bajos; temperatura, carga y alimentación alteran
+las mediciones. El video demo sigue siendo de 10 FPS aunque la capacidad de cálculo sea mayor.
+
+### Validaciones realizadas y límites
+
+- PyTorch CUDA, tensor en GPU, arquitectura/clases, inferencia `device=0` y parámetros
+  `cuda:0`/FP32 comprobados. La imagen real produjo tres detecciones `patches`, aproximadamente
+  87.49 %, 86.74 % y 78.38 % en GPU; las pequeñas diferencias numéricas no son una evaluación de precisión.
+- Cámara física **HD Webcam**, índice 0 y DirectShow: lectura e inferencia CUDA comprobadas
+  a 640×480, aproximadamente 30 FPS informados; cierre y liberación probados en CLI y backend.
+  No se determinó si es integrada o una USB externa; no se afirma haber validado una webcam
+  externa concreta ni su desconexión física.
+- Vista previa física dejó el historial en 2 registros. En la web, el video demo incrementó
+  el historial de 2 a 3 solo al pulsar captura. Un reenvío del mismo UUID mantuvo 3 registros;
+  ambos JPEG se guardaron y se pudieron decodificar.
+- Buscar, iniciar, detener, cambiar CUDA↔CPU sin reiniciar, aplicar confianza `0.99` y recuperar
+  la vista previa tras recargar la web comprobados. El servidor de prueba se detiene al finalizar.
+- **108 pruebas automatizadas aprobadas**, una advertencia de Starlette/HTTPX ya existente;
+  `pip check` y comprobaciones de sintaxis JavaScript correctas. Los mocks cubren ausencia de
+  CUDA, petición explícita de GPU, cámaras ocupadas/desconectadas y reintentos simultáneos.
+- Siguen pendientes precisión sobre piezas estampadas, iluminación/posición reales, webcam
+  USB externa identificada, desconexión física y teléfono físico. El modelo no se cambió ni entrenó.
+  La ausencia de detecciones continúa siendo calidad no verificada. La demo puede producir
+  detecciones espurias sobre figuras sintéticas.
+
+Archivos de esta fase: `backend/runtime.py`, `backend/camera.py`, `backend/detector.py`,
+`backend/capture.py`, `backend/config.py`, `backend/main.py`; `frontend/camera.js`,
+`frontend/dashboard.html`, `frontend/index.html`, `frontend/app.js`, `frontend/monitor.html`,
+`frontend/monitor.js`, `frontend/style.css`; `training/test_inference.py`,
+`tools/benchmark_inference.py`, `requirements-cuda.txt`, `README.md`; pruebas
+`test_runtime.py`, `test_camera_session.py`, `test_benchmark.py`, `test_api.py`,
+`test_local_inference.py` y `test_frontend_results.py`.
 
 ## Pruebas
 
@@ -417,9 +579,9 @@ Otras combinaciones de versiones no se han verificado.
 | `pytest training/test_inference.py -q` | No contiene pruebas recolectables |
 | Script original con `--model model/best.pt --source outputs/demo/sample.png` | Se detuvo con `FileNotFoundError`: faltan los pesos |
 
-En la fase de captura no se entrenó ni descargó ningún modelo. La fase de inferencia descrita
-en esta guía usa pesos públicos ya entrenados de otro autor. La cámara USB física y el teléfono
-siguen pendientes de validación con hardware.
+En aquella fase de captura no se entrenó ni descargó ningún modelo. La inferencia posterior
+usa pesos públicos ya entrenados de otro autor. La validación actual de cámara y CUDA se
+documenta arriba; la captura de teléfono físico sigue pendiente.
 
 ### Comprobación manual pendiente
 
@@ -450,6 +612,14 @@ siguen pendientes de validación con hardware.
 | `/history`, `/stats`, `/trend` | GET | Historial, estadísticas y tendencia |
 | `/export/csv`, `/export/pdf` | GET | Reportes |
 | `/ws/monitor` | WebSocket | Difusión de cada inspección |
+| `/preview` | POST | Inferencia de fotogramas sin registrar inspecciones |
+| `/runtime` | GET | Versiones, disponibilidad CUDA y GPU detectada |
+| `/cameras` | GET | Buscar índices OpenCV con la fuente detenida |
+| `/camera/start`, `/camera/stop` | POST | Iniciar/detener fuente sin reiniciar FastAPI |
+| `/camera/status`, `/camera/stream` | GET | Estado, rendimiento y vista previa MJPEG |
+| `/camera/settings` | POST | Aplicar `conf` durante la captura |
+| `/camera/capture` | POST | Captura manual: JSON `request_id` UUID; original/anotada y un registro |
+| `/captures/{filename}` | GET | Descargar JPEG de una captura manual |
 
 ## Créditos y licencia
 

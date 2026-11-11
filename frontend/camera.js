@@ -13,6 +13,7 @@
   let polling = false;
   let pendingRequest = null;
   let actionMessage = "";
+  let attached = false;
   function message(text) { actionMessage = text; status.textContent = text; }
 
   async function api(path, body) {
@@ -32,6 +33,19 @@
 
   function state(data) {
     running = data.running;
+    if (running && !attached) {
+      const selected = data.source_type === "camera" ? String(data.source) : "demo";
+      if (![...source.options].some((option) => option.value === selected)) {
+        const option = document.createElement("option");
+        option.value = selected; option.textContent = `OpenCV camera ${selected}`; source.appendChild(option);
+      }
+      source.value = selected;
+      byId("serverCameraDevice").value = data.requested_device;
+      byId("serverCameraConfidence").value = data.confidence;
+      image.src = `/camera/stream?session=${Date.now()}`; image.hidden = false;
+      attached = true;
+    }
+    if (!running) { attached = false; image.removeAttribute("src"); image.hidden = true; }
     start.disabled = scan.disabled = running;
     stop.disabled = !running;
     capture.disabled = busy || data.state !== "running";
@@ -81,7 +95,7 @@
         fps: Number(byId("serverCameraFps").value), conf: Number(byId("serverCameraConfidence").value),
         device: byId("serverCameraDevice").value,
       });
-      state(data); image.src = `/camera/stream?session=${Date.now()}`; image.hidden = false;
+      state(data);
       await gpu();
     } catch (error) { message(error.message); start.disabled = false; }
   });

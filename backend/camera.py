@@ -45,7 +45,7 @@ class CameraSession:
                 self._raw = self._jpeg = None
                 self._conf, self._device = conf, device
                 self._state = {"state": "starting", "running": True, "error": None,
-                               "source": str(source), "source_type": "camera" if isinstance(source, int) else "video",
+                               "source": str(source), "source_type": "camera" if isinstance(source, int) else "video", "backend": backend,
                                "frames_processed": 0, "inspections_recorded": 0,
                                "requested": {"width": width, "height": height, "fps": fps}}
             self._thread = Thread(target=self._run, args=(source, backend, width, height, fps, loop), daemon=True)

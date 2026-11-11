@@ -14,7 +14,7 @@ function setConnected(isConnected) {
 }
 
 function renderResult(data) {
-  const isPass = data.status === "PASS";
+  const hasDefects = data.defects_found > 0;
 
   const defectRows = data.defects
     .map(
@@ -35,10 +35,12 @@ function renderResult(data) {
 
   resultCard.innerHTML = `
     <div class="result-status-row">
-      <span class="result-status-badge ${isPass ? "pass" : "fail"}">${isPass ? "PASS" : "FAIL"}</span>
+      <span class="result-status-badge ${hasDefects ? "fail" : "no-detections"}">${hasDefects ? "DEFECTS DETECTED" : "NO DETECTIONS"}</span>
       <span class="result-count">DEFECTS FOUND: <strong>${data.defects_found}</strong> ${severityNote}</span>
     </div>
     <img class="result-image" src="data:image/jpeg;base64,${data.annotated_image}" alt="Latest inspection frame" />
+    ${!hasDefects ? '<p>No detections at this threshold. Product quality is unverified.</p>' : ""}
+    ${data.inference_device ? `<p>${data.inference_device} · ${data.inference_ms.toFixed(1)} ms · ${data.processing_fps.toFixed(1)} processing FPS</p>` : ""}
     ${data.defects_found > 0 ? `<div class="defect-list">${defectRows}</div>` : ""}
   `;
 

@@ -681,6 +681,26 @@ input[type="file"] {
 .trend-end-label.pass { fill: var(--pass); }
 .trend-end-label.fail { fill: var(--fail); }
 
+.no-detections {
+  color: var(--text-secondary);
+  background: var(--surface-2);
+}
+
+.camera-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.camera-options label { display: grid; gap: 5px; font-size: 0.8rem; }
+.camera-options input, .camera-options select {
+  min-width: 0; padding: 8px; color: var(--text-primary); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 5px;
+}
+#serverCameraMetrics, #gpuStatus { font-size: 0.8rem; }
+#serverCameraImage[hidden] { display: none; }
+#serverCaptureDownloads { display: flex; gap: 12px; padding: 8px 0; }
+
 .dashboard-nav a {
   flex: 1;
   text-align: center;

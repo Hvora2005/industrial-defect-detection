@@ -44,14 +44,14 @@ function setCameraUiState(isRunning) {
 
 function startLiveMode() {
   liveModeBtn.classList.add("active");
-  liveModeBtn.querySelector("svg").nextSibling.textContent = " Live Mode: ON";
+  liveModeBtn.querySelector("svg").nextSibling.textContent = " Live Preview: ON";
   liveModeTimer = setInterval(async () => {
     if (liveModeBusy || !mediaStream) return;
     liveModeBusy = true;
     try {
       const blob = await captureFrameAsBlob();
       frozenFrame.src = URL.createObjectURL(blob);
-      await runInspection(blob, "/detect");
+      await runInspection(blob, "/preview", false);
     } finally {
       liveModeBusy = false;
     }
@@ -66,7 +66,7 @@ function stopLiveMode() {
   liveModeBusy = false;
   liveModeBtn.classList.remove("active");
   const textNode = liveModeBtn.querySelector("svg").nextSibling;
-  if (textNode) textNode.textContent = " Live Mode: OFF";
+  if (textNode) textNode.textContent = " Live Preview: OFF";
 }
 
 function toggleLiveMode() {
@@ -144,7 +144,7 @@ async function uploadAndInspect(file) {
   }
 }
 
-async function runInspection(imageBlob, endpoint) {
+async function runInspection(imageBlob, endpoint, record = true) {
   const formData = new FormData();
   formData.append("file", imageBlob, "frame.jpg");
 
@@ -161,7 +161,7 @@ async function runInspection(imageBlob, endpoint) {
       throw new Error(`Server returned ${response.status}`);
     }
     const data = await response.json();
-    inspectionCount += 1;
+    if (record) inspectionCount += 1;
     inspectionCountEl.textContent = inspectionCount;
     renderResult(data);
   } catch (err) {
@@ -170,7 +170,7 @@ async function runInspection(imageBlob, endpoint) {
 }
 
 function renderResult(data) {
-  const isPass = data.status === "PASS";
+  const hasDefects = data.defects_found > 0;
 
   const defectRows = data.defects
     .map(
@@ -191,10 +191,12 @@ function renderResult(data) {
 
   resultCard.innerHTML = `
     <div class="result-status-row">
-      <span class="result-status-badge ${isPass ? "pass" : "fail"}">${isPass ? "PASS" : "FAIL"}</span>
+      <span class="result-status-badge ${hasDefects ? "fail" : "no-detections"}">${hasDefects ? "DEFECTS DETECTED" : "NO DETECTIONS"}</span>
       <span class="result-count">DEFECTS FOUND: <strong>${data.defects_found}</strong> ${severityNote}</span>
     </div>
     <img class="result-image" src="data:image/jpeg;base64,${data.annotated_image}" alt="Annotated inspection result" />
+    ${!hasDefects ? '<p>No detections at this threshold. Product quality is unverified.</p>' : ""}
+    ${data.inference_device ? `<p>${data.inference_device} · ${data.inference_ms.toFixed(1)} ms · ${data.processing_fps.toFixed(1)} processing FPS</p>` : ""}
     ${data.defects_found > 0 ? `<div class="defect-list">${defectRows}</div>` : ""}
   `;
 }

@@ -6,7 +6,7 @@ function formatDefectName(name) {
 
 function renderStats(stats) {
   document.getElementById("statTotal").textContent = stats.total_inspected;
-  document.getElementById("statPass").textContent = stats.pass_count;
+  document.getElementById("statPass").textContent = stats.no_detections_count || 0;
   document.getElementById("statFail").textContent = stats.fail_count;
   document.getElementById("statRate").textContent = `${stats.defect_rate}%`;
   document.getElementById("statCommon").textContent = stats.most_common_defect
@@ -15,7 +15,7 @@ function renderStats(stats) {
   document.getElementById("statAvgConf").textContent =
     stats.avg_confidence != null ? `${stats.avg_confidence}%` : "—";
 
-  renderPassFailChart(stats.pass_count, stats.fail_count);
+  renderPassFailChart(stats.no_detections_count || 0, stats.fail_count);
   renderDefectChart(stats.defect_distribution);
   renderSeverityChart(stats.severity_distribution);
 }
@@ -47,12 +47,12 @@ function renderPassFailChart(passCount, failCount) {
   const container = document.getElementById("passFailChart");
   container.innerHTML = `
     <div class="bar-row">
-      <div class="bar-row-label">PASS</div>
-      <div class="bar-track"><div class="bar-fill pass" style="width:${(passCount / max) * 100}%"></div></div>
+      <div class="bar-row-label">NO DETECTIONS</div>
+      <div class="bar-track"><div class="bar-fill no-detections" style="width:${(passCount / max) * 100}%"></div></div>
       <div class="bar-row-value">${passCount}</div>
     </div>
     <div class="bar-row">
-      <div class="bar-row-label">FAIL</div>
+      <div class="bar-row-label">DEFECTS DETECTED</div>
       <div class="bar-track"><div class="bar-fill fail" style="width:${(failCount / max) * 100}%"></div></div>
       <div class="bar-row-value">${failCount}</div>
     </div>
@@ -92,7 +92,8 @@ function renderHistory(inspections) {
   container.innerHTML = inspections
     .map((insp) => {
       const time = new Date(insp.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      const isPass = insp.status === "PASS";
+      const hasDefects = insp.status === "FAIL";
+      const statusLabel = hasDefects ? "DEFECTS" : (insp.status === "NO_DETECTIONS" ? "NO DETECTIONS" : "LEGACY / UNVERIFIED");
       const defectLabel = insp.primary_defect ? formatDefectName(insp.primary_defect) : "-";
       const conf = insp.primary_confidence != null ? `${insp.primary_confidence.toFixed(1)}%` : "";
       const severityBadge = insp.severity
@@ -101,7 +102,7 @@ function renderHistory(inspections) {
       return `
         <div class="history-row">
           <span class="history-time">${time}</span>
-          <span class="history-badge ${isPass ? "pass" : "fail"}">${isPass ? "PASS" : "FAIL"}</span>
+          <span class="history-badge ${hasDefects ? "fail" : "no-detections"}">${statusLabel}</span>
           ${severityBadge}
           <span class="history-defect">${defectLabel}</span>
           <span class="history-conf">${conf}</span>
@@ -111,6 +112,7 @@ function renderHistory(inspections) {
 }
 
 function renderTrendChart(buckets) {
+  buckets = (buckets || []).map((b) => ({ ...b, pass: b.no_detections || 0 }));
   const wrap = document.getElementById("trendChartWrap");
 
   if (!buckets || buckets.length < 2) {

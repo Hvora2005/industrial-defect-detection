@@ -4,8 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Inspection Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css" />
   <style>
     .app { max-width: 640px; }
@@ -26,22 +24,49 @@
     </div>
 
     <section>
+      <p class="section-label">ACERO CIFRADO · USB / LOCAL VIDEO</p>
+      <p id="gpuStatus">Consultando GPU…</p>
+      <div class="camera-options">
+        <label>Fuente <select id="serverCameraSource"><option value="demo">Demo: sample.avi</option></select></label>
+        <label>Backend <select id="serverCameraBackend"><option value="auto">Auto</option><option value="dshow">DirectShow</option><option value="msmf">Media Foundation</option></select></label>
+        <label>Ancho <input id="serverCameraWidth" type="number" min="64" max="4096" value="640"></label>
+        <label>Alto <input id="serverCameraHeight" type="number" min="64" max="4096" value="480"></label>
+        <label>FPS solicitados <input id="serverCameraFps" type="number" min="1" max="120" value="30"></label>
+        <label>Inferencia <select id="serverCameraDevice"><option value="auto">Auto</option><option value="cuda">GPU CUDA</option><option value="cpu">CPU</option></select></label>
+        <label>Confianza <input id="serverCameraConfidence" type="number" min="0" max="1" step="0.05" value="0.4"></label>
+        <button class="btn" id="serverCameraApplyConfidence" type="button">Aplicar confianza</button>
+      </div>
+      <div class="controls">
+        <button class="btn" id="serverCameraRefresh">Buscar cámaras</button>
+        <button class="btn primary" id="serverCameraStart">Iniciar inspección</button>
+        <button class="btn danger" id="serverCameraStop" disabled>Detener</button>
+        <button class="btn primary full" id="serverCameraCapture" disabled>Capturar e inspeccionar una pieza</button>
+      </div>
+      <p id="serverCameraStatus" role="status">Captura detenida.</p>
+      <p id="serverCameraMetrics"></p>
+      <img id="serverCameraImage" class="result-image" alt="Vista previa con detecciones" hidden>
+      <div id="serverCaptureDownloads"></div>
+      <p class="hint">La vista previa no suma piezas. Cada captura manual registra una inspección y guarda
+        la imagen original y anotada. Pulsa una sola vez por pieza; no hay identificación automática de piezas únicas.</p>
+    </section>
+
+    <section>
       <p class="section-label">SUMMARY</p>
       <div class="stat-grid" id="statGrid">
         <div class="stat-tile">
-          <div class="stat-label">TOTAL INSPECTED</div>
+          <div class="stat-label">INSPECCIONES REGISTRADAS</div>
           <div class="stat-value" id="statTotal">&mdash;</div>
         </div>
         <div class="stat-tile">
-          <div class="stat-label">PASS</div>
-          <div class="stat-value pass" id="statPass">&mdash;</div>
+          <div class="stat-label">NO DETECTIONS</div>
+          <div class="stat-value no-detections" id="statPass">&mdash;</div>
         </div>
         <div class="stat-tile">
-          <div class="stat-label">FAIL</div>
+          <div class="stat-label">DEFECTS DETECTED</div>
           <div class="stat-value fail" id="statFail">&mdash;</div>
         </div>
         <div class="stat-tile">
-          <div class="stat-label">DEFECT RATE</div>
+          <div class="stat-label">FRAMES WITH DETECTIONS</div>
           <div class="stat-value" id="statRate">&mdash;</div>
         </div>
         <div class="stat-tile">
@@ -59,8 +84,8 @@
       <p class="section-label">INSPECTION TREND</p>
       <div class="result-card">
         <div class="trend-legend">
-          <span class="legend-item"><span class="legend-dot pass"></span>Pass</span>
-          <span class="legend-item"><span class="legend-dot fail"></span>Fail</span>
+          <span class="legend-item"><span class="legend-dot no-detections"></span>No detections</span>
+          <span class="legend-item"><span class="legend-dot fail"></span>Defects detected</span>
         </div>
         <div id="trendChartWrap">
           <div class="result-empty">Not enough data yet.</div>
@@ -69,7 +94,8 @@
     </section>
 
     <section>
-      <p class="section-label">PASS VS FAIL</p>
+      <p class="section-label">DETECTION RESULTS</p>
+      <p>No detections does not certify product quality. Historical PASS records remain unverified.</p>
       <div class="result-card">
         <div class="bar-chart" id="passFailChart"></div>
       </div>
@@ -116,5 +142,6 @@
   </div>
 
   <script src="/static/dashboard.js"></script>
+  <script src="/static/camera.js"></script>
 </body>
 </html>

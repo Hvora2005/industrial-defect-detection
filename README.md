@@ -5,8 +5,9 @@ Esta fase prepara la captura con webcam USB y archivos locales en Windows, conse
 la captura desde el teléfono, FastAPI, YOLO11, el monitor y el historial originales.
 No incluye entrenamiento nuevo, ESP32 ni controles de motores.
 
-**El clon no incluye pesos entrenados ni dataset.** Es posible probar la captura sin ellos;
-la inspección de defectos requiere un archivo `model/best.pt` previamente entrenado.
+**El clon no incluye los pesos entrenados del autor ni el dataset.** Es posible probar la
+captura sin ellos. En esta fase se validó un modelo de defectos de terceros, identificado
+en la sección de inferencia; no se presenta como el modelo original de Hvora2005.
 Una vista previa nunca devuelve PASS/FAIL ni registra inspecciones.
 
 ## Repositorio del equipo y origen
@@ -26,7 +27,7 @@ proyecto y la relación de fork en GitHub.
 La adaptación añade captura USB por OpenCV con selección y diagnóstico de cámaras,
 pruebas con imágenes/videos locales, vista previa sin pesos y manejo explícito de la
 ausencia del modelo en la API y la interfaz. Incluye pruebas automatizadas y esta guía de
-Windows; conserva las fuentes originales, las reglas de detección, la licencia MIT y los
+Windows; conserva las fuentes originales, la severidad, la licencia MIT y los
 créditos de Hemin Vora.
 
 Para verificar los remotos y consultar actualizaciones sin cambiar archivos locales:
@@ -51,7 +52,7 @@ Webcam USB / imagen / video → backend/capture.py → POST /detect
                                                    │
                                   FastAPI → OpenCV (decodificación)
                                                    │
-                                  detector.py → YOLO11 → PASS/FAIL
+                                  detector.py → YOLO11 → detecciones / NO_DETECTIONS
                                                    │
                       JSON + JPEG anotado + WebSocket /ws/monitor
                                                    │
@@ -64,8 +65,8 @@ Webcam USB / imagen / video → backend/capture.py → POST /detect
 | `frontend/app.js` | `getUserMedia` con cámara trasera preferida; canvas a JPEG, máximo 640 px; captura manual, envío periódico cada 2 s y carga de imágenes |
 | `backend/main.py` | FastAPI, rutas de inspección y páginas; difunde los resultados al monitor |
 | `backend/capture.py` | Cliente OpenCV añadido: selección por índice, búsqueda de cámaras, imagen/video local y vista previa; reutiliza `/detect` |
-| `backend/detector.py` | Carga los pesos una vez si existen; inferencia, cajas, severidad y regla original: cualquier detección implica FAIL |
-| `backend/config.py` | Ruta absoluta de `model/best.pt`, confianza `0.4`, tamaño de inferencia `256`; `HOST`/`PORT` son referencias y el arranque se configura en Uvicorn |
+| `backend/detector.py` | Comprueba clases NEU-DET y tarea, ejecuta inferencia, dibuja cajas, clases y confianza; emite `FAIL` o `NO_DETECTIONS` |
+| `backend/config.py` | Pesos, tamaño, escala de grises e IoU configurables mediante `ACERO_*`; confianza por defecto `0.4`; el arranque se configura en Uvicorn |
 | `backend/database.py` | SQLAlchemy y SQLite en `outputs/inspections.db` |
 | `backend/reports.py` | Exportación CSV y PDF |
 | `backend/generate_cert.py` | Certificado HTTPS local para la cámara del teléfono |
@@ -88,7 +89,7 @@ envía fotos periódicas. Estas fuentes y sus rutas siguen disponibles.
 - El entrenamiento original usa `yolo11n.pt` como base. `train.py` tiene valores por defecto
   de 80 épocas y 320 px; el README anterior describía una corrida de 60 épocas y 256 px.
   El backend conserva 256 px. No hay pesos, corridas ni métricas verificables en este clon.
-- `model/` contiene únicamente `.gitkeep`. `dataset/data.yaml` se genera con el conversor y
+- El contenido versionado de `model/` no incluye pesos. `dataset/data.yaml` se genera con el conversor y
   tampoco está incluido. `.gitignore` excluye pesos, dataset y resultados.
 - Las clases originales de NEU-DET son `crazing`, `inclusion`, `patches`, `pitted_surface`,
   `rolled-in_scale` y `scratches`. El detector usa las clases almacenadas en los pesos.
@@ -226,6 +227,153 @@ certificado local y concede acceso a la cámara. Revisa el Firewall de Windows s
 El cliente OpenCV usa HTTP en 8000 por defecto; si lo diriges a HTTPS, Python debe confiar
 en el certificado. No se desactiva la verificación TLS.
 
+## Inferencia YOLO con imágenes y videos locales
+
+### Pesos encontrados y procedencia
+
+Se revisaron el README, historial de `model/`, árbol, ramas, etiquetas, releases e issues
+del [repositorio original](https://github.com/Hvora2005/industrial-defect-detection).
+No se encontró una descarga pública de sus pesos entrenados. Su README propone entrenar
+o colocar `model/best.pt`; **no se ejecutó entrenamiento**. Para obtener exactamente el modelo
+de Hvora2005 hace falta que el autor publique o facilite ese checkpoint.
+
+Para comprobar inferencia real se encontró una alternativa explícita:
+[hazemaaa/steel-defect-yolo11n](https://huggingface.co/hazemaaa/steel-defect-yolo11n), publicada
+por el autor de [SteelDefectDetection](https://github.com/hs29306060202959-ship-it/SteelDefectDetection).
+Es YOLO11n entrenado para NEU-DET, **no el modelo de Hvora2005 ni un YOLO genérico COCO**.
+Se verificaron sus seis clases y la arquitectura `yolo11n.yaml`. El checkpoint declara
+entrenamiento de 150 épocas, tamaño 640 y semilla 42. Las métricas de su autor no se han
+reproducido aquí ni se trasladan a piezas estampadas.
+
+La licencia declarada para estos pesos es **AGPL-3.0**. Se conserva la licencia MIT del
+repositorio original; los pesos externos no se incluyen en Git ni se renombran como `best.pt`.
+
+El descargador verifica el SHA-256 antes de escribir y no reemplaza un archivo diferente:
+
+```powershell
+.\.venv\Scripts\python.exe tools/download_validation_model.py
+```
+
+Procedencia fijada: revisión `0d3d93d0ec8754d8dacc0585298fab32c4aea940`, archivo
+`production/best.pt`, destino `model/steel-defect-yolo11n.pt`.
+SHA-256: `621c742492ffe5137d214893499e47d59066685c53c400810de71cd26e4f8bac`.
+
+El detector exige un checkpoint `.pt` existente con tarea `detect` y las seis clases NEU-DET.
+Rechaza COCO, tareas distintas y YAML que construiría un modelo sin entrenar. No descarga
+pesos automáticamente. La coincidencia de clases no acredita por sí sola procedencia o
+precisión; por eso se documentan también la fuente y el hash.
+
+### Reproducir la prueba con una imagen NEU-DET
+
+Desde la raíz en PowerShell, descarga una muestra y su anotación del espejo que referencia
+el conversor del repositorio original. No hace falta descargar el dataset completo:
+
+```powershell
+New-Item -ItemType Directory -Force outputs/validation | Out-Null
+$sampleBase = 'https://raw.githubusercontent.com/siddhartamukherjee/NEU-DET-Steel-Surface-Defect-Detection/351bee21b56bbf97a1e1d18262bceb202eb7ef41'
+Invoke-WebRequest "$sampleBase/IMAGES/patches_1.jpg" -OutFile outputs/validation/patches_1.jpg
+Invoke-WebRequest "$sampleBase/ANNOTATIONS/patches_1.xml" -OutFile outputs/validation/patches_1.xml
+
+.\.venv\Scripts\python.exe backend/capture.py --model model/steel-defect-yolo11n.pt --source outputs/validation/patches_1.jpg --imgsz 640 --grayscale --iou 0.6 --conf 0.4 --headless --output outputs/inference/patches_1.png --overwrite
+```
+
+La ficha de este modelo requiere entrada gris replicada en tres canales, `imgsz=640` y
+NMS IoU `0.6`; los comandos lo indican expresamente. La conversión usa luminancia de Pillow,
+como la implementación de su autor. Omite `--headless` para ver cajas, clases y confianza
+en la ventana existente de OpenCV; la imagen espera una tecla. La consola imprime porcentajes
+y las etiquetas dibujadas usan confianza de 0 a 1.
+
+### Reproducir la prueba de video y cambiar el umbral
+
+```powershell
+.\.venv\Scripts\python.exe tools/create_test_media.py
+.\.venv\Scripts\python.exe backend/capture.py --model model/steel-defect-yolo11n.pt --source outputs/demo/sample.avi --imgsz 640 --grayscale --iou 0.6 --conf 0.4 --headless --interval 0 --output outputs/inference/sample_annotated.avi --overwrite
+
+# Prueba explícita de ausencia de detecciones al subir el umbral:
+.\.venv\Scripts\python.exe backend/capture.py --model model/steel-defect-yolo11n.pt --source outputs/validation/patches_1.jpg --imgsz 640 --grayscale --iou 0.6 --conf 0.99 --headless --output outputs/inference/patches_high_threshold.png --overwrite
+```
+
+`--output` admite imagen para entrada de imagen y AVI/MJPG o MP4/mp4v para video/webcam.
+Se comprobó AVI/MJPG; MP4 depende del codec disponible y no se validó en esta máquina.
+Se conserva el FPS informado por la fuente; si no está disponible se usa 10 FPS. Se guarda
+cada fotograma procesado; `--interval` afecta el tiempo de procesamiento, no el FPS guardado.
+Se cierra el escritor al terminar, interrumpir o fallar. `--overwrite` autoriza reemplazar
+la salida, pero nunca el archivo de entrada. Sin esa opción se rechaza una salida existente.
+
+Sin `--model`, el cliente utiliza la API. Con `--model` ejecuta el mismo `DefectDetector`
+localmente sin registrar en SQLite ni emitir al monitor. `--preview-only` sigue disponible
+sin pesos; no permite guardar resultados fingiendo inferencia.
+
+El comando original también sigue admitiendo una imagen, video o carpeta de imágenes y
+ahora reutiliza el mismo detector, sin duplicar las reglas ni cargar un modelo por imagen:
+
+```powershell
+.\.venv\Scripts\python.exe training/test_inference.py --model model/steel-defect-yolo11n.pt --source outputs/validation --conf 0.4 --imgsz 640 --grayscale --iou 0.6 --out outputs/inference/legacy --overwrite
+```
+
+### Usar el modelo seleccionado en la API y el monitor existente
+
+En una terminal de PowerShell, configura el modelo de terceros de forma explícita:
+
+```powershell
+$env:ACERO_MODEL_PATH = 'model/steel-defect-yolo11n.pt'
+$env:ACERO_IMG_SIZE = '640'
+$env:ACERO_GRAYSCALE = '1'
+$env:ACERO_IOU = '0.6'
+.\.venv\Scripts\python.exe -m uvicorn main:app --app-dir backend --host 127.0.0.1 --port 8000
+```
+
+En otra terminal, abre [el monitor](http://127.0.0.1:8000/monitor) y ejecuta:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+.\.venv\Scripts\python.exe backend/capture.py --source outputs/validation/patches_1.jpg --conf 0.4 --headless --output outputs/inference/api_patches.png --overwrite
+.\.venv\Scripts\python.exe backend/capture.py --source outputs/validation/patches_1.jpg --conf 0.99 --headless
+```
+
+La API admite `POST /detect?conf=0.4` y `/upload?conf=0.4`, con `0 <= conf <= 1`;
+los valores inválidos se rechazan. El teléfono conserva el valor predeterminado de `0.4`.
+En modo API se guardan registros de prueba en SQLite y se difunden por WebSocket.
+El JPEG del cliente puede producir pequeñas diferencias frente a inferencia local por
+la recodificación de la imagen. Las variables `ACERO_*` solo afectan esa terminal y se
+leen al arrancar; reinicia el servidor si cambias los pesos o su preprocesamiento.
+
+La webcam mantiene las mismas opciones de selección, errores y captura. Cuando exista hardware:
+
+```powershell
+.\.venv\Scripts\python.exe backend/capture.py --camera 0 --model model/steel-defect-yolo11n.pt --imgsz 640 --grayscale --iou 0.6 --conf 0.4 --output outputs/inference/webcam.avi
+```
+
+### Interpretación y validación real de esta fase
+
+- `FAIL` significa que el modelo detectó al menos un defecto; no es una decisión industrial
+  validada de rechazo. Se conserva ese código para las detecciones existentes.
+- `NO_DETECTIONS` significa que no hubo cajas por encima del umbral. **No significa PASS ni
+  certifica que la pieza sea correcta**. Se muestra esa advertencia en consola, imagen y web.
+- SQLite, estadísticas, tendencia, CSV y PDF distinguen ausencia de detecciones de defectos.
+  Se conservan los registros históricos `PASS` como datos anteriores no verificados; ya no
+  se generan automáticamente ni se cuentan los nuevos `NO_DETECTIONS` como fallos.
+- La severidad sigue siendo la regla heurística original, no una evaluación industrial calibrada.
+
+| Validación ejecutada con el modelo real | Resultado observado |
+|---|---|
+| Carga en Windows/CPU | Correcta; YOLO11n, seis clases NEU-DET y hash verificados |
+| `patches_1.jpg`, confianza `0.4` | Tres detecciones `patches`: 87.50 %, 86.74 %, 78.39 %; PNG anotado guardado y revisado |
+| Misma imagen, confianza `0.99` | `NO_DETECTIONS`; imagen con aviso guardada |
+| PNG sintético | Sin detecciones; sin aprobación de pieza |
+| AVI sintético de 30 fotogramas | 30 procesados y 30 recuperados del AVI de salida a 10 FPS |
+| Contenido del AVI sintético | 5 fotogramas sin detecciones; 25 etiquetaron el círculo artificial como `scratches` (resultado espurio) |
+| API con modelo real | `/health` listo; detección y ausencia de detecciones transmitidas al monitor y registradas por separado |
+| Interfaz existente | Clases, confianza, imagen anotada y aviso de calidad no verificada comprobados en el navegador |
+| Script de inferencia original adaptado | Carpeta de imágenes procesada correctamente con los mismos pesos |
+| Suite automatizada ampliada | 88 pruebas aprobadas en Windows; una advertencia de obsolescencia de Starlette/HTTPX |
+
+El video sintético prueba el recorrido de datos y también exhibe detecciones espurias; no
+mide precisión. La muestra NEU-DET podría pertenecer al entrenamiento del modelo externo.
+No se evaluó un conjunto independiente ni piezas estampadas, iluminación real, USB físico
+o teléfono físico. No se entrenó un modelo nuevo. Los dos registros de la comprobación
+real de API permanecen en la base local como inspecciones de prueba.
+
 ## Pruebas
 
 ```powershell
@@ -237,6 +385,11 @@ Las pruebas generan y decodifican imágenes/videos reales en carpetas temporales
 cámaras ausentes, desconexiones, selección, errores HTTP y cierre de recursos. La integración
 comprueba el multipart contra FastAPI, los endpoints originales, SQLite temporal y WebSocket
 con un detector simulado. **No valida inferencia YOLO ni hardware**.
+La suite amplía las 50 pruebas iniciales con contratos del detector, umbrales, rechazo de
+modelos incompatibles, guardado y lectura de video, errores de codec, descarga con hash,
+estadísticas, reportes y presentación de estados. Las tres pruebas de renderizado usan
+Node si está instalado y se omiten si no lo está; no es una dependencia de ejecución.
+Las validaciones con pesos reales de la tabla anterior se ejecutan aparte de pytest.
 
 El archivo original `training/test_inference.py` es un script manual, no una suite automatizada.
 Requiere pesos y muestras reales para producir resultados:
@@ -245,7 +398,7 @@ Requiere pesos y muestras reales para producir resultados:
 .\.venv\Scripts\python.exe training/test_inference.py --model model/best.pt --source "C:\ruta\imagenes" --conf 0.4
 ```
 
-### Validación realizada en esta fase
+### Validación anterior: fase de captura
 
 Entorno comprobado: Windows 11 Home x64, Python 3.14.3, OpenCV 5.0.0
 (`opencv-python` 5.0.0.93), FastAPI 0.162.4, Ultralytics 8.4.210 y PyTorch 2.15.0 CPU.
@@ -264,8 +417,9 @@ Otras combinaciones de versiones no se han verificado.
 | `pytest training/test_inference.py -q` | No contiene pruebas recolectables |
 | Script original con `--model model/best.pt --source outputs/demo/sample.png` | Se detuvo con `FileNotFoundError`: faltan los pesos |
 
-No se entrenó ni descargó ningún modelo. La captura USB real, su desconexión física,
-la inferencia con pesos entrenados y la captura del teléfono siguen pendientes de validación.
+En la fase de captura no se entrenó ni descargó ningún modelo. La fase de inferencia descrita
+en esta guía usa pesos públicos ya entrenados de otro autor. La cámara USB física y el teléfono
+siguen pendientes de validación con hardware.
 
 ### Comprobación manual pendiente
 

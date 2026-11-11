@@ -4,8 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>AI Industrial Inspection</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
@@ -72,7 +70,7 @@
         </button>
         <button class="btn full" id="liveModeBtn" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/></svg>
-          Live Mode: OFF
+          Live Preview: OFF
         </button>
         <label class="btn full" id="uploadLabel" for="uploadInput">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M12 4 8 8M12 4l4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
@@ -81,6 +79,9 @@
         <input type="file" id="uploadInput" accept="image/*" />
       </div>
     </section>
+
+    <p class="hint">Live Preview does not register pieces. Use Capture &amp; Inspect once per piece.
+      For a USB camera connected to the laptop, use the camera controls in Dashboard.</p>
 
     <section>
       <p class="section-label">INSPECTION RESULT</p>

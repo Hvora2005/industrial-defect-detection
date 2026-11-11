@@ -48,7 +48,9 @@ def build_pdf() -> bytes:
     pdf.cell(0, 8, "Summary", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 10)
     pdf.cell(0, 6, f"Total Inspected: {stats['total_inspected']}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 6, f"Pass: {stats['pass_count']}    Fail: {stats['fail_count']}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 6, f"No detections: {stats['no_detections_count']}    Defects detected: {stats['fail_count']}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 6, f"Legacy PASS (unvalidated): {stats['pass_count']}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 6, "No detections does not certify product quality.", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 6, f"Defect Rate: {stats['defect_rate']}%", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 6, f"Most Common Defect: {stats['most_common_defect'] or 'None'}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
@@ -82,7 +84,7 @@ def build_pdf() -> bytes:
         confidence = f"{insp['primary_confidence']:.1f}%" if insp["primary_confidence"] is not None else "-"
         row = [
             insp["timestamp"][:19].replace("T", " "),
-            insp["status"],
+            {"NO_DETECTIONS": "NONE", "FAIL": "DEFECT", "PASS": "LEGACY"}.get(insp["status"], insp["status"]),
             insp.get("severity") or "-",
             insp["primary_defect"] or "-",
             confidence,

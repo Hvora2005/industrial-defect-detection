@@ -20,7 +20,7 @@ class Inspection(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     timestamp = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
-    status = Column(String, nullable=False)          # "PASS" or "FAIL"
+    status = Column(String, nullable=False)          # "FAIL", "NO_DETECTIONS", or legacy "PASS"
     defects_found = Column(Integer, nullable=False, default=0)
     primary_defect = Column(String, nullable=True)     # highest-confidence defect class, if any
     primary_confidence = Column(Float, nullable=True)  # its confidence, percentage
@@ -81,7 +81,8 @@ def get_stats() -> dict:
         rows = session.query(Inspection).all()
         total = len(rows)
         pass_count = sum(1 for r in rows if r.status == "PASS")
-        fail_count = total - pass_count
+        fail_count = sum(1 for r in rows if r.status == "FAIL")
+        no_detections_count = sum(1 for r in rows if r.status == "NO_DETECTIONS")
 
         defect_counts: dict[str, int] = {}
         for r in rows:
@@ -111,6 +112,7 @@ def get_stats() -> dict:
             "total_inspected": total,
             "pass_count": pass_count,
             "fail_count": fail_count,
+            "no_detections_count": no_detections_count,
             "defect_rate": round((fail_count / total) * 100, 1) if total > 0 else 0.0,
             "most_common_defect": most_common,
             "defect_distribution": defect_counts,
@@ -131,11 +133,13 @@ def get_trend(bucket_seconds: int = 60, limit_buckets: int = 15) -> list[dict]:
         for r in rows:
             ts = r.timestamp.replace(tzinfo=datetime.timezone.utc).timestamp()
             bucket_key = int(ts // bucket_seconds) * bucket_seconds
-            bucket = buckets.setdefault(bucket_key, {"pass": 0, "fail": 0})
+            bucket = buckets.setdefault(bucket_key, {"pass": 0, "fail": 0, "no_detections": 0})
             if r.status == "PASS":
                 bucket["pass"] += 1
-            else:
+            elif r.status == "FAIL":
                 bucket["fail"] += 1
+            elif r.status == "NO_DETECTIONS":
+                bucket["no_detections"] += 1
 
         sorted_keys = sorted(buckets.keys())[-limit_buckets:]
         return [
@@ -143,6 +147,7 @@ def get_trend(bucket_seconds: int = 60, limit_buckets: int = 15) -> list[dict]:
                 "time": datetime.datetime.fromtimestamp(k, tz=datetime.timezone.utc).strftime("%H:%M"),
                 "pass": buckets[k]["pass"],
                 "fail": buckets[k]["fail"],
+                "no_detections": buckets[k]["no_detections"],
             }
             for k in sorted_keys
         ]

@@ -254,9 +254,8 @@ def migrate_legacy_defects() -> None:
                     )
                 )
 
-                # Actualizar el contador para evitar duplicados
-                # dentro de la misma migración.
-                existing_counts[defect_key] += 1
+                # Solo se consumen filas que existían antes de migrar.
+                # Las detecciones repetidas del JSON son ocurrencias distintas.
 
         # Guardar todos los cambios.
         session.commit()

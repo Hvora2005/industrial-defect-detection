@@ -1,3 +1,5 @@
+> **Inicio con un comando (PowerShell):** ejecuta `.\iniciar.ps1` desde la raíz del proyecto. Prepara el frontend y sirve toda la aplicación con FastAPI. Requiere el entorno `.venv`, Node.js y pesos existentes. [Opciones de inicio](docs/frontend-redesign.md#inicio-con-un-comando).
+>
 > **Frontend renovado:** React + TypeScript + Vite. Para compilar, iniciar y validar la interfaz actual, consulta [la guía del frontend](docs/frontend-redesign.md). Las secciones de validación anterior documentan fases históricas.
 
 # Acero Cifrado — inspección visual de piezas metálicas

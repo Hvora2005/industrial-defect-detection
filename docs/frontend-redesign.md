@@ -12,6 +12,42 @@ mismo HTML en `/`, `/dashboard` y `/monitor`, y un error explicativo si falta el
 
 ## Iniciar en PowerShell
 
+### Inicio con un comando
+
+Con el entorno Python, Node.js y los pesos existentes preparados, desde la raíz:
+
+```powershell
+.\iniciar.ps1
+```
+
+Comprueba dependencias/CUDA, instala paquetes npm si faltan o cambió el lockfile,
+compila el frontend y arranca FastAPI en primer plano. Abre
+`http://127.0.0.1:8000`; Ctrl+C detiene la instancia que acabas de iniciar. Si ya
+hay una instancia con el mismo build, muestra su URL sin crear otro servidor.
+Si el puerto corresponde a otra aplicación/build, informa el conflicto y no
+cierra procesos.
+
+```powershell
+.\iniciar.ps1 -Puerto 8001 -Dispositivo cpu
+.\iniciar.ps1 -Modelo 'C:\pesos\defectos.pt' -Dispositivo cuda
+.\iniciar.ps1 -CompartirRed
+.\iniciar.ps1 -Verificar # prepara y valida sin arrancar el servidor
+```
+
+Respeta `ACERO_MODEL_PATH` y `ACERO_DEVICE`. Sin modelo explícito, busca
+`model/best.pt` y después `model/steel-defect-yolo11n.pt`. No descarga pesos,
+entrena ni reinstala PyTorch: un entorno ausente o CUDA explícita no disponible
+produce instrucciones de corrección. El archivo seleccionado sigue sujeto a las
+comprobaciones de clases/tarea existentes del backend.
+
+Si Windows bloquea scripts, puedes ejecutar sin cambiar la política permanente:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\iniciar.ps1
+```
+
+### Inicio manual y primera preparación
+
 Comprobado con Node.js 24.14.0, npm 11.13.0 y el Python del entorno virtual
 existente. `package-lock.json` fija las dependencias de npm. Desde la raíz:
 

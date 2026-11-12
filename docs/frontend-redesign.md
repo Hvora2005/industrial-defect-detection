@@ -121,6 +121,16 @@ faltantes aparecen como no disponibles y no se completan con valores inventados.
 
 ## Contratos y significado de los datos
 
+### Apariencia clara y oscura
+
+El botón de sol/luna de la barra superior cambia el tema en todas las vistas.
+La elección se recuerda en el navegador con la clave `acero-theme` de localStorage;
+por defecto se conserva el tema oscuro. La preferencia se aplica antes del primer
+pintado y sigue funcionando en la sesión si el navegador restringe el almacenamiento.
+El tema claro tiene superficies, controles, alertas y gráficas de mayor contraste.
+La cámara mantiene un fondo oscuro y las imágenes no reciben filtros de color.
+
+
 | Función | Contrato existente |
 | --- | --- |
 | Disponibilidad y hardware | `GET /health`, `GET /runtime` |

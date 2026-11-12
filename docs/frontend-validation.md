@@ -101,3 +101,15 @@ fixtures no representan conteos ni precisión de la operación real.
   precisión sobre nuevas piezas ni se ejecutó entrenamiento.
 
 Comandos y arquitectura: [frontend-redesign.md](frontend-redesign.md).
+
+## Actualización de temas claro/oscuro
+
+Selector accesible en la barra superior, preferencia persistente y funcionamiento
+con almacenamiento restringido. Pruebas actualizadas: 15 casos de React/Vitest y
+14 recorridos Playwright (escritorio y móvil). Se comprueba la persistencia tras
+recargar, la navegación en claro, ausencia de desbordamiento y contraste mínimo
+4.5:1 en título, descripción de panel y botón primario. Las capturas de ambos
+temas se revisaron visualmente. No se cambian cámara, inferencia ni SQLite.
+La prueba de `getUserMedia` utiliza un MediaStream sintético de canvas para
+evitar bloqueos intermitentes del dispositivo ficticio de Edge; sigue ejercitando
+reproducción, captura a Blob, subida y detención de pistas nativas.

@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#11151b" />
+    <script>
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem("acero-theme") === "light" ? "light" : "dark";
+      } catch {
+        document.documentElement.dataset.theme = "dark";
+      }
+      document.documentElement.style.colorScheme =
+        document.documentElement.dataset.theme;
+    </script>
     <meta
       name="description"
       content="Acero Cifrado: estación local de inspección industrial mediante visión artificial."

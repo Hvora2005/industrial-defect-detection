@@ -258,7 +258,11 @@ async function navigate(page: Page, label: string) {
   await expect(
     page.getByRole("heading", { name: label, exact: true, level: 1 }),
   ).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
 }
 test("navigation, loaded history filters, detail and responsive layout", async ({
   page,
@@ -270,14 +274,22 @@ test("navigation, loaded history filters, detail and responsive layout", async (
   ).toBeVisible();
   const folder = path.resolve("../outputs/frontend-redesign");
   mkdirSync(folder, { recursive: true });
-  await page.evaluate(() => { window.scrollTo(0, 0); if(document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    if (document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+  });
   await page.screenshot({
     path: path.join(folder, `${info.project.name}-inspection.png`),
     fullPage: true,
   });
   await navigate(page, "Panel general");
   await expect(page.getByText("220", { exact: true })).toBeVisible();
-  await page.evaluate(() => { window.scrollTo(0, 0); if(document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    if (document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+  });
   await page.screenshot({
     path: path.join(folder, `${info.project.name}-overview.png`),
     fullPage: true,
@@ -352,7 +364,11 @@ test("camera controls use real contracts; capture retry is idempotent; preview d
   expect(calls.find((c) => c.path === "/camera/settings")?.body).toEqual({
     conf: 0.73,
   });
-  await page.evaluate(() => { window.scrollTo(0, 0); if(document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    if (document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+  });
   await page.screenshot({
     path: path.resolve(
       `../outputs/frontend-redesign/${info.project.name}-capture-fixture.png`,
@@ -397,6 +413,23 @@ test("browser camera preview is separate from capture and image upload", async (
 }) => {
   const calls = await fixtures(page);
   await page.goto("/static/");
+  // Deterministic native MediaStream: Edge's OS fake camera can stall at 2×2.
+  // This still exercises video playback, canvas capture, Blob upload and stop().
+  await page.evaluate(() => {
+    navigator.mediaDevices.getUserMedia = async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width=640;canvas.height=480;
+      const context=canvas.getContext('2d')!;
+      const stream=canvas.captureStream(25);
+      let frame=0;
+      const timer=window.setInterval(()=>{
+        if(stream.getTracks().every(track=>track.readyState==='ended')) {clearInterval(timer);return;}
+        context.fillStyle='#527787';context.fillRect(0,0,640,480);
+        context.fillStyle='#d3b07a';context.fillRect(frame++%600,100,30,30);
+      },40);
+      return stream;
+    };
+  });
   await page
     .getByRole("button", { name: "Este dispositivo", exact: true })
     .click();
@@ -404,6 +437,9 @@ test("browser camera preview is separate from capture and image upload", async (
     .getByRole("button", { name: "Iniciar cámara", exact: true })
     .click();
   await expect(page.locator("video")).toBeVisible();
+  await expect.poll(() => page.locator('video').evaluate(video =>
+    video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 2,
+  ), { timeout: 15000 }).toBe(true);
   await page.getByRole("checkbox", { name: /Analizar vista previa/ }).check();
   await expect
     .poll(() => calls.filter((c) => c.path === "/preview").length)
@@ -423,16 +459,113 @@ test("browser camera preview is separate from capture and image upload", async (
   await expect(
     page.getByRole("link", { name: "Imagen original" }),
   ).toBeVisible();
-  await page
-    .getByLabel("Subir imagen de inspección")
-    .setInputFiles({
-      name: "fixture.png",
-      mimeType: "image/png",
-      buffer: Buffer.from(image, "base64"),
-    });
+  await page.getByLabel("Subir imagen de inspección").setInputFiles({
+    name: "fixture.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(image, "base64"),
+  });
   await expect
     .poll(() => calls.filter((c) => c.path === "/upload").length)
     .toBe(1);
   await page.getByRole("button", { name: "Detener", exact: true }).click();
   await expect(page.locator("video")).toBeHidden();
+});
+
+test("light theme persists and stays readable across all views", async ({
+  page,
+}, info) => {
+  await fixtures(page);
+  await page.goto("/static/");
+  await page.getByRole("button", { name: "Activar tema claro" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await navigate(page, "Panel general");
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Activar tema oscuro" }),
+  ).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.getByText("220", { exact: true })).toBeVisible();
+  const ratios = await page.evaluate(() => {
+    const color = (value: string) =>
+      value
+        .match(/[\d.]+/g)!
+        .slice(0, 3)
+        .map(Number);
+    const luminance = (rgb: number[]) =>
+      rgb
+        .map((v) => {
+          v /= 255;
+          return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+        })
+        .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+    const contrast = (fg: string, bg: string) => {
+      const a = luminance(color(fg)),
+        b = luminance(color(bg));
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    };
+    const title = getComputedStyle(document.querySelector("h1")!);
+    const detail = getComputedStyle(
+      document.querySelector(".panel-heading p")!,
+    );
+    const panel = getComputedStyle(document.querySelector(".panel")!);
+    const primary = getComputedStyle(
+      document.querySelector(".overview-lead .primary")!,
+    );
+    return [
+      contrast(title.color, getComputedStyle(document.body).backgroundColor),
+      contrast(detail.color, panel.backgroundColor),
+      contrast(primary.color, primary.backgroundColor),
+    ];
+  });
+  ratios.forEach((ratio) => expect(ratio).toBeGreaterThanOrEqual(4.5));
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({
+    path: path.resolve(
+      `../outputs/frontend-redesign/${info.project.name}-overview-light.png`,
+    ),
+    fullPage: true,
+  });
+  for (const name of [
+    "Historial",
+    "Estadísticas",
+    "Configuración",
+    "Monitor remoto",
+    "Inspección en vivo",
+  ])
+    await navigate(page, name);
+  await expect(page.locator(".camera-viewport")).toHaveCSS(
+    "background-color",
+    "rgb(12, 17, 22)",
+  );
+  await page.screenshot({
+    path: path.resolve(
+      `../outputs/frontend-redesign/${info.project.name}-inspection-light.png`,
+    ),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Activar tema oscuro" }).click();
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+});
+test("theme remains usable when browser storage is restricted", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Storage.prototype.getItem = () => {
+      throw new Error("blocked");
+    };
+    Storage.prototype.setItem = () => {
+      throw new Error("blocked");
+    };
+  });
+  await fixtures(page, { offline: true });
+  await page.goto("/static/");
+  await expect(page.getByRole("alert").first()).toBeVisible();
+  await page.getByRole("button", { name: "Activar tema claro" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
 });

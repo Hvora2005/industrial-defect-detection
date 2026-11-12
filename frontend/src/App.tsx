@@ -11,13 +11,16 @@ import {
   LayoutDashboard,
   Menu,
   Monitor,
+  Moon,
   Settings2,
+  Sun,
   X,
 } from "lucide-react";
 import { api } from "./services/api";
 import { useResource } from "./hooks/useResource";
 import { useCamera } from "./hooks/useCamera";
 import { useMonitor } from "./hooks/useMonitor";
+import { useTheme } from "./hooks/useTheme";
 import { Inspection } from "./views/Inspection";
 import { Overview } from "./views/Overview";
 import { History, HistoryDetail } from "./views/History";
@@ -26,6 +29,7 @@ import { Settings } from "./views/Settings";
 import { ErrorNotice, Loading, Panel, ResultPanel } from "./components/Common";
 import type { Detection, HistoryRow, View } from "./types";
 import "./styles.css";
+import "./themes.css";
 
 const navigation = [
   {
@@ -76,6 +80,7 @@ function selectedView(): View {
         : "inspeccion";
 }
 export default function App() {
+  const { theme, toggleTheme } = useTheme();
   const [view, setView] = useState<View>(selectedView);
   const [menu, setMenu] = useState(false);
   const [limit, setLimit] = useState(100);
@@ -212,6 +217,18 @@ export default function App() {
             <strong>{current.label}</strong>
           </div>
           <div className="topbar-status">
+            <button
+              className="icon-button theme-toggle"
+              onClick={toggleTheme}
+              aria-label={
+                theme === "dark" ? "Activar tema claro" : "Activar tema oscuro"
+              }
+              title={
+                theme === "dark" ? "Activar tema claro" : "Activar tema oscuro"
+              }
+            >
+              {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
             <span className={`status-chip ${online ? "" : "offline"}`}>
               <i className="dot" />
               {health.loading

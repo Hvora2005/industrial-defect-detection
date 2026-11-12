@@ -32,3 +32,12 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+# Frontend: install/build/test outputs
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+*.tsbuildinfo
+
+frontend/node_modules

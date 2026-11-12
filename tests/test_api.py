@@ -94,9 +94,25 @@ def test_capture_client_protocol_against_real_api_routes(client, monkeypatch):
     assert client.get("/stats").json()["total_inspected"] == 1
 
 
-@pytest.mark.parametrize("path", ["/", "/monitor", "/dashboard", "/static/app.js"])
+@pytest.mark.parametrize("path", ["/", "/monitor", "/dashboard"])
 def test_existing_pages_still_served(client, path):
     assert client.get(path).status_code == 200
+
+
+def test_compiled_frontend_assets_served_from_html(client):
+    import re
+    html = client.get("/").text
+    scripts = re.findall(r'src="(/static/[^\"]+\.js)"', html)
+    assert scripts, "Build the React frontend with npm ci && npm run build"
+    assert all(client.get(path).status_code == 200 for path in scripts)
+
+
+def test_missing_frontend_build_is_actionable_without_breaking_api(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "FRONTEND_DIR", tmp_path)
+    response = client.get("/")
+    assert response.status_code == 503
+    assert "npm run build" in response.json()["detail"]
+    assert client.get("/health").status_code == 200
 
 
 @pytest.mark.parametrize("endpoint", ["/detect", "/upload"])

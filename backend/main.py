@@ -36,7 +36,7 @@ from runtime import resolve_device, runtime_status
 from database import save_inspection, get_recent_inspections, get_stats, get_trend
 from reports import build_csv, build_pdf
 
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 detector = DefectDetector() if MODEL_PATH.is_file() else None
 CAPTURE_DIR = PROJECT_ROOT / "outputs" / "captures"
 
@@ -95,22 +95,24 @@ async def _read_image_from_upload(file: UploadFile) -> np.ndarray:
     return image_bgr
 
 
-app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
+app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR), check_dir=False), name="static")
 
 
 @app.get("/")
 def serve_frontend():
+    if not (FRONTEND_DIR / "index.html").is_file():
+        raise HTTPException(status_code=503, detail="Frontend not built. Run npm ci and npm run build inside frontend/.")
     return FileResponse(str(FRONTEND_DIR / "index.html"))
 
 
 @app.get("/monitor")
 def serve_monitor():
-    return FileResponse(str(FRONTEND_DIR / "monitor.html"))
+    return serve_frontend()
 
 
 @app.get("/dashboard")
 def serve_dashboard():
-    return FileResponse(str(FRONTEND_DIR / "dashboard.html"))
+    return serve_frontend()
 
 
 @app.get("/health")

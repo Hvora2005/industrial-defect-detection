@@ -1,0 +1,16 @@
+:root {
+  --canvas: #151a21;
+  --surface: #1b222b;
+  --line: #2a3440;
+  --text: #e0e7ed;
+  --muted: #8697a8;
+  --cyan: #94c9cf;
+  --teal: #8bbdb0;
+  --amber: #d3b07a;
+  --red: #cf928b;
+  --font: "Manrope Variable", "Segoe UI", sans-serif;
+  --numeric: "Cascadia Code", "Consolas", monospace;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
